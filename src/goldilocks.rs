@@ -12,7 +12,7 @@ use subtle::{
     CtOption,
 };
 
-pub const MODULUS: u64 = 0xFFFFFFFF00000001u64;
+pub const MODULUS: u64 = 0xffffffff00000001u64;
 
 #[inline(always)]
 const fn gl_add(lhs: u64, rhs: u64) -> u64 {
@@ -327,13 +327,13 @@ impl Field for Scalar {
         ((self.0 & 1) as u8).into()
     }
 
-    fn try_random<R: rand_core::TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
+    fn try_random<R: TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
         let mut bytes = [0u8; 64];
         rng.try_fill_bytes(&mut bytes)?;
         Ok(Self::from_u256_mod_n(U256::from_little_endian(&bytes)))
     }
 
-    fn random<R: rand_core::CryptoRng>(rng: &mut R) -> Self {
+    fn random<R: CryptoRng>(rng: &mut R) -> Self {
         let mut bytes = [0u8; 16];
         rng.fill_bytes(&mut bytes);
         Self::from_u256_mod_n(U256::from_little_endian(&bytes))
@@ -357,12 +357,27 @@ impl Field for Scalar {
         }
     }
 
-    fn pow(self, exp: Self) -> Self {
-        todo!()
+    fn pow(mut self, mut exp: Self) -> Self {
+        let mut result = Self::ONE;
+        for _ in 0..64 {
+            let product = result * self;
+            result = Scalar::conditional_select(&result, &product, ((exp.0 & 1) as u8).into());
+            exp.0 >>= 1;
+            self = self.square();
+        }
+        result
     }
 
-    fn pow_vartime(self, exp: Self) -> Self {
-        todo!()
+    fn pow_vartime(mut self, mut exp: Self) -> Self {
+        let mut result = Self::ONE;
+        while exp.0 != 0 {
+            if (exp.0 & 1) != 0 {
+                result *= self;
+            }
+            exp.0 >>= 1;
+            self = self.square();
+        }
+        result
     }
 
     fn div_int(&self, rhs: &Self) -> (Self, Self) {
@@ -447,21 +462,21 @@ impl Field64 for Scalar {
 }
 
 impl PrimeField for Scalar {
-    const MODULUS: &'static str = "0xFFFFFFFF00000001";
+    const MODULUS: &'static str = "0xffffffff00000001";
 
     const S: usize = 32;
 
-    const MULTIPLICATIVE_GENERATOR: Self;
+    const MULTIPLICATIVE_GENERATOR: Self = Self(7);
 
     const MINUS_TWO: Self = Self(MODULUS - 2);
 
-    const TWO_INV: Self;
+    const TWO_INV: Self = Self(0x7fffffff80000001);
 
-    const ROOT_OF_UNITY: Self;
+    const ROOT_OF_UNITY: Self = Self(0x185629dcda58878c);
 
-    const ROOT_OF_UNITY_INV: Self;
+    const ROOT_OF_UNITY_INV: Self = Self(0x76b6b635b6fc8719);
 
-    const DELTA: Self;
+    const DELTA: Self = Self(0xaa5b2509f86bb4d4);
 }
 
 impl PrimeField64 for Scalar {}
