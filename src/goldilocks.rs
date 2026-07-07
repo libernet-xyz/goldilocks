@@ -14,6 +14,12 @@ use subtle::{
 
 pub const MODULUS: u64 = 0xffffffff00000001u64;
 
+/// Upper-case characters used in textual representations.
+static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/// Lower-case characters used in textual representations.
+static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
 #[inline(always)]
 const fn gl_add(lhs: u64, rhs: u64) -> u64 {
     let (mut value, overflow) = lhs.overflowing_add(rhs);
@@ -399,11 +405,52 @@ impl Field for Scalar {
     }
 
     fn from_str_radix(s: &str, radix: usize) -> Result<Self, std::fmt::Error> {
-        todo!()
+        assert!(radix >= 2 && radix <= 36);
+        if s.is_empty() {
+            return Err(std::fmt::Error);
+        }
+        let mut value = 0u64;
+        for byte in s.bytes() {
+            let digit = CHARACTERS_UPPER_CASE[..radix]
+                .iter()
+                .position(|&c| c == byte)
+                .or_else(|| {
+                    CHARACTERS_LOWER_CASE[..radix]
+                        .iter()
+                        .position(|&c| c == byte)
+                })
+                .ok_or(std::fmt::Error)?;
+            value = value
+                .checked_mul(radix as u64)
+                .ok_or(std::fmt::Error)?
+                .checked_add(digit as u64)
+                .ok_or(std::fmt::Error)?;
+        }
+        Scalar::try_from(value).map_err(|_| std::fmt::Error)
     }
 
     fn to_str_radix(&self, radix: usize, pad_to: usize, upper_case: bool) -> String {
-        todo!()
+        assert!(radix >= 2 && radix <= 36);
+        let characters = if upper_case {
+            CHARACTERS_UPPER_CASE
+        } else {
+            CHARACTERS_LOWER_CASE
+        };
+        let mut value = self.0;
+        let mut s = String::default();
+        let radix = radix as u64;
+        while value != 0 {
+            let digit = value % radix;
+            s.push(characters[digit as usize] as char);
+            value /= radix;
+        }
+        if s.is_empty() {
+            s.push('0');
+        }
+        while s.len() < pad_to {
+            s.push('0');
+        }
+        s.chars().rev().collect()
     }
 
     fn try_to_u8(&self) -> Option<u8> {
@@ -425,39 +472,40 @@ impl Field for Scalar {
 
 impl Field64 for Scalar {
     fn to_le_bytes(&self) -> [u8; 8] {
-        todo!()
+        self.0.to_le_bytes()
     }
 
     fn to_be_bytes(&self) -> [u8; 8] {
-        todo!()
+        self.0.to_be_bytes()
     }
 
     fn from_u128_mod_n(u128: u128) -> Self {
-        todo!()
+        Self((u128 % (MODULUS as u128)) as u64)
     }
 
     fn from_u256_mod_n(u256: U256) -> Self {
-        todo!()
+        let value = u256 % U256::from(MODULUS);
+        Self(value.as_u64())
     }
 
     fn try_to_u32(&self) -> CtOption<u32> {
-        todo!()
+        CtOption::new(self.0 as u32, ((self.0 > u32::MAX as u64) as u8).into())
     }
 
     fn to_u64(&self) -> u64 {
-        todo!()
+        self.0
     }
 
     fn to_u128(&self) -> u128 {
-        todo!()
+        self.0 as u128
     }
 
     fn to_u256(&self) -> U256 {
-        todo!()
+        U256::from(self.0)
     }
 
     fn to_u512(&self) -> U512 {
-        todo!()
+        U512::from(self.0)
     }
 }
 
