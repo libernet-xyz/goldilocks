@@ -14,7 +14,7 @@ use subtle::{
 
 pub const MODULUS: u64 = 0xffffffff00000001u64;
 
-const MODULUS_U128: u128 = MODULUS as u128;
+const EPSILON: u64 = (1 << 32) - 1;
 
 /// Upper-case characters used in textual representations.
 static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -22,12 +22,14 @@ static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUV
 /// Lower-case characters used in textual representations.
 static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
-#[inline(always)]
+#[inline]
 const fn gl_add(lhs: u64, rhs: u64) -> u64 {
-    (((lhs as u128) + (rhs as u128)) % MODULUS_U128) as u64
+    let (sum, over) = lhs.overflowing_add(rhs);
+    let sum = if over { sum.wrapping_add(EPSILON) } else { sum };
+    if sum >= MODULUS { sum - MODULUS } else { sum }
 }
 
-#[inline(always)]
+#[inline]
 const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
     if rhs > lhs {
         MODULUS - rhs + lhs
@@ -36,10 +38,10 @@ const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
     }
 }
 
-#[inline(always)]
+#[inline]
 const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
     let wide_value = (lhs as u128) * (rhs as u128);
-    (wide_value % MODULUS_U128) as u64
+    (wide_value % (MODULUS as u128)) as u64
 }
 
 /// A Goldilocks scalar.
@@ -482,7 +484,7 @@ impl Field64 for Scalar {
     }
 
     fn from_u128_mod_n(u128: u128) -> Self {
-        Self((u128 % MODULUS_U128) as u64)
+        Self((u128 % (MODULUS as u128)) as u64)
     }
 
     fn from_u256_mod_n(u256: U256) -> Self {
