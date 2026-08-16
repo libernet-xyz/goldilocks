@@ -14,6 +14,8 @@ use subtle::{
 
 pub const MODULUS: u64 = 0xffffffff00000001u64;
 
+const MODULUS_U128: u128 = MODULUS as u128;
+
 /// Upper-case characters used in textual representations.
 static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -22,11 +24,7 @@ static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuv
 
 #[inline(always)]
 const fn gl_add(lhs: u64, rhs: u64) -> u64 {
-    let (mut value, overflow) = lhs.overflowing_add(rhs);
-    if overflow {
-        value -= MODULUS;
-    }
-    value
+    (((lhs as u128) + (rhs as u128)) % MODULUS_U128) as u64
 }
 
 #[inline(always)]
@@ -41,7 +39,7 @@ const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
 #[inline(always)]
 const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
     let wide_value = (lhs as u128) * (rhs as u128);
-    (wide_value % (MODULUS as u128)) as u64
+    (wide_value % MODULUS_U128) as u64
 }
 
 /// A Goldilocks scalar.
@@ -86,7 +84,7 @@ impl ConstantTimeLess for Scalar {}
 
 impl ConditionallySelectable for Scalar {
     fn conditional_select(a: &Self, b: &Self, choice: Choice) -> Self {
-        if choice.into() { *a } else { *b }
+        if choice.into() { *b } else { *a }
     }
 }
 
@@ -122,7 +120,11 @@ impl Neg for Scalar {
     type Output = Scalar;
 
     fn neg(self) -> Self::Output {
-        Self(MODULUS - self.0)
+        if self.0 > 0 {
+            Self(MODULUS - self.0)
+        } else {
+            Self::ZERO
+        }
     }
 }
 
@@ -334,19 +336,19 @@ impl Field for Scalar {
     }
 
     fn try_random<R: TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
-        let mut bytes = [0u8; 64];
+        let mut bytes = [0u8; 32];
         rng.try_fill_bytes(&mut bytes)?;
         Ok(Self::from_u256_mod_n(U256::from_little_endian(&bytes)))
     }
 
     fn random<R: CryptoRng>(rng: &mut R) -> Self {
-        let mut bytes = [0u8; 16];
+        let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
         Self::from_u256_mod_n(U256::from_little_endian(&bytes))
     }
 
     fn random_default() -> Self {
-        let mut bytes = [0u8; 16];
+        let mut bytes = [0u8; 32];
         getrandom::fill(&mut bytes).unwrap();
         Self::from_u256_mod_n(U256::from_little_endian(&bytes))
     }
@@ -480,7 +482,7 @@ impl Field64 for Scalar {
     }
 
     fn from_u128_mod_n(u128: u128) -> Self {
-        Self((u128 % (MODULUS as u128)) as u64)
+        Self((u128 % MODULUS_U128) as u64)
     }
 
     fn from_u256_mod_n(u256: U256) -> Self {
@@ -489,7 +491,7 @@ impl Field64 for Scalar {
     }
 
     fn try_to_u32(&self) -> CtOption<u32> {
-        CtOption::new(self.0 as u32, ((self.0 > u32::MAX as u64) as u8).into())
+        CtOption::new(self.0 as u32, ((self.0 < 1u64 << 32) as u8).into())
     }
 
     fn to_u64(&self) -> u64 {
