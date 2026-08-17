@@ -11,6 +11,7 @@ use subtle::{
     CtOption,
 };
 
+/// The order of the Goldilocks field, `0xffffffff00000001`.
 pub const MODULUS: u64 = 0xffffffff00000001u64;
 
 const EPSILON: u64 = (1 << 32) - 1;
@@ -44,10 +45,15 @@ const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
 }
 
 /// A Goldilocks scalar.
+///
+/// Goldilocks is a very fast 64-bit prime field with order `0xffffffff00000001`.
 #[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Scalar(u64);
 
 impl Scalar {
+    /// Constructs a Goldilocks scalar from its raw 64-bit value.
+    ///
+    /// Panics if the specified `value` exceeds [`MODULUS`].
     #[inline]
     pub const fn from_const(value: u64) -> Self {
         assert!(value < MODULUS, "invalid Goldilocks value");
