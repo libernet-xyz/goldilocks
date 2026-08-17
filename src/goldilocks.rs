@@ -24,8 +24,8 @@ static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuv
 
 #[inline]
 const fn gl_add(lhs: u64, rhs: u64) -> u64 {
-    let (sum, over) = lhs.overflowing_add(rhs);
-    let sum = if over { sum.wrapping_add(EPSILON) } else { sum };
+    let (sum, overflow) = lhs.overflowing_add(rhs);
+    let sum = if overflow { sum + EPSILON } else { sum };
     if sum < MODULUS { sum } else { sum - MODULUS }
 }
 
@@ -40,8 +40,20 @@ const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
 
 #[inline]
 const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
-    let wide_value = (lhs as u128) * (rhs as u128);
-    (wide_value % (MODULUS as u128)) as u64
+    let wide = (lhs as u128) * (rhs as u128);
+    let lo = wide as u64;
+    let hi = (wide >> 64) as u64;
+    let hi_hi = hi >> 32;
+    let hi_lo = hi & EPSILON;
+
+    let (t0, borrow) = lo.overflowing_sub(hi_hi);
+    let t0 = if borrow { t0.wrapping_sub(EPSILON) } else { t0 };
+
+    let t1 = hi_lo * EPSILON;
+
+    let (t2, overflow) = t0.overflowing_add(t1);
+    let t2 = if overflow { t2 + EPSILON } else { t2 };
+    if t2 < MODULUS { t2 } else { t2 - MODULUS }
 }
 
 /// A Goldilocks scalar.
@@ -845,20 +857,15 @@ mod tests {
         assert_eq!(from_const(34) * from_const(12), from_const(408));
     }
 
-    fn test_mul_large_impl(v1: Scalar, v2: Scalar, v3: Scalar) {
+    #[test]
+    fn test_mul_large() {
+        let v1 = from_const(0xfedcba9876543210);
+        let v2 = from_const(0x1234567890abcdef);
+        let v3 = from_const(0xf0e5603f75ca15a4);
         assert_eq!(v1 * v2, v3);
         assert_eq!(v1 * &v2, v3);
         assert_eq!(v2 * v1, v3);
         assert_eq!(v2 * &v1, v3);
-    }
-
-    #[test]
-    fn test_mul_large() {
-        test_mul_large_impl(
-            from_const(0xfedcba9876543210),
-            from_const(0x1234567890abcdef),
-            from_const(0xf0e5603f75ca15a4),
-        );
     }
 
     #[test]
