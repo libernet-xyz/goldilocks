@@ -24,8 +24,8 @@ static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuv
 
 #[inline]
 const fn gl_add(lhs: u64, rhs: u64) -> u64 {
-    let (sum, over) = lhs.overflowing_add(rhs);
-    let sum = if over { sum.wrapping_add(EPSILON) } else { sum };
+    let (sum, overflow) = lhs.overflowing_add(rhs);
+    let sum = if overflow { sum + EPSILON } else { sum };
     if sum < MODULUS { sum } else { sum - MODULUS }
 }
 
@@ -845,20 +845,15 @@ mod tests {
         assert_eq!(from_const(34) * from_const(12), from_const(408));
     }
 
-    fn test_mul_large_impl(v1: Scalar, v2: Scalar, v3: Scalar) {
+    #[test]
+    fn test_mul_large() {
+        let v1 = from_const(0xfedcba9876543210);
+        let v2 = from_const(0x1234567890abcdef);
+        let v3 = from_const(0xf0e5603f75ca15a4);
         assert_eq!(v1 * v2, v3);
         assert_eq!(v1 * &v2, v3);
         assert_eq!(v2 * v1, v3);
         assert_eq!(v2 * &v1, v3);
-    }
-
-    #[test]
-    fn test_mul_large() {
-        test_mul_large_impl(
-            from_const(0xfedcba9876543210),
-            from_const(0x1234567890abcdef),
-            from_const(0xf0e5603f75ca15a4),
-        );
     }
 
     #[test]
