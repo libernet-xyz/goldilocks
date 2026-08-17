@@ -4,7 +4,6 @@ use rand_core::{CryptoRng, TryCryptoRng};
 use starkom_ff::{Field, Field64, PrimeField, PrimeField64};
 use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
 use std::iter::{Product, Sum};
-use std::num::ParseIntError;
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::str::FromStr;
 use subtle::{
@@ -279,10 +278,20 @@ impl UpperHex for Scalar {
 }
 
 impl FromStr for Scalar {
-    type Err = ParseIntError;
+    type Err = std::fmt::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(s.parse()?))
+        if s.starts_with("0x") || s.starts_with("0X") {
+            Self::from_str_radix(&s[2..], 16)
+        } else if s.starts_with("0b") || s.starts_with("0B") {
+            Self::from_str_radix(&s[2..], 2)
+        } else if s.starts_with("0o") || s.starts_with("0O") {
+            Self::from_str_radix(&s[2..], 8)
+        } else if s.starts_with("0") {
+            Self::from_str_radix(s, 8)
+        } else {
+            Self::from_str_radix(s, 10)
+        }
     }
 }
 
@@ -1355,6 +1364,22 @@ mod tests {
         assert_eq!("0".parse::<Scalar>().unwrap(), Scalar::ZERO);
         assert_eq!("1".parse::<Scalar>().unwrap(), Scalar::ONE);
         assert_eq!("42".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0x2a".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0X2A".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0b101010".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0B101010".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0o52".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0O52".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("052".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0xffffffff00000000".parse::<Scalar>().unwrap(), Scalar::MAX);
+        assert!("0xffffffff00000001".parse::<Scalar>().is_err());
+        assert!("18446744069414584321".parse::<Scalar>().is_err());
+    }
+
+    #[test]
+    fn test_parse_scalar_hex() {
+        assert_eq!(parse_scalar("0x2a"), from_const(42));
+        assert_eq!(parse_scalar("0xffffffff00000000"), Scalar::MAX);
     }
 
     #[test]
