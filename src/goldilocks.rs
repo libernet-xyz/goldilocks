@@ -599,10 +599,7 @@ mod tests {
     fn test_fmt_debug() {
         assert_eq!(format!("{:?}", from_const(0)), "Scalar(0x0000000000000000)");
         assert_eq!(format!("{:?}", from_const(1)), "Scalar(0x0000000000000001)");
-        assert_eq!(
-            format!("{:?}", Scalar::MAX),
-            "Scalar(0xffffffff00000000)"
-        );
+        assert_eq!(format!("{:?}", Scalar::MAX), "Scalar(0xffffffff00000000)");
     }
 
     #[test]
@@ -1110,19 +1107,16 @@ mod tests {
     #[test]
     fn test_try_from_le_bytes() {
         assert_eq!(
-            Scalar::try_from_le_bytes(&[239, 205, 171, 137, 103, 69, 35, 1])
-                .unwrap(),
+            Scalar::try_from_le_bytes(&[239, 205, 171, 137, 103, 69, 35, 1]).unwrap(),
             from_const(0x0123456789abcdef)
         );
         assert_eq!(
             Scalar::try_from_le_bytes(&[0, 0, 0, 0, 255, 255, 255, 255]).unwrap(),
             Scalar::MAX
         );
-        assert!(
-            bool::from(
-                Scalar::try_from_le_bytes(&[1, 0, 0, 0, 255, 255, 255, 255]).is_none()
-            )
-        );
+        assert!(bool::from(
+            Scalar::try_from_le_bytes(&[1, 0, 0, 0, 255, 255, 255, 255]).is_none()
+        ));
     }
 
     #[test]
@@ -1135,11 +1129,9 @@ mod tests {
             Scalar::try_from_be_bytes(&[255, 255, 255, 255, 0, 0, 0, 0]).unwrap(),
             Scalar::MAX
         );
-        assert!(
-            bool::from(
-                Scalar::try_from_be_bytes(&[255, 255, 255, 255, 0, 0, 0, 1]).is_none()
-            )
-        );
+        assert!(bool::from(
+            Scalar::try_from_be_bytes(&[255, 255, 255, 255, 0, 0, 0, 1]).is_none()
+        ));
     }
 
     #[test]
@@ -1244,11 +1236,11 @@ mod tests {
     #[test]
     fn test_print_hexadecimal_lower_case() {
         assert_eq!(from_const(0).to_str_radix(16, 0, false), "0");
-        assert_eq!(from_const(0xdeadbeef).to_str_radix(16, 0, false), "deadbeef");
         assert_eq!(
-            Scalar::MAX.to_str_radix(16, 0, false),
-            "ffffffff00000000"
+            from_const(0xdeadbeef).to_str_radix(16, 0, false),
+            "deadbeef"
         );
+        assert_eq!(Scalar::MAX.to_str_radix(16, 0, false), "ffffffff00000000");
     }
 
     #[test]
@@ -1265,10 +1257,7 @@ mod tests {
     fn test_print_hexadecimal_upper_case() {
         assert_eq!(from_const(0).to_str_radix(16, 0, true), "0");
         assert_eq!(from_const(0xdeadbeef).to_str_radix(16, 0, true), "DEADBEEF");
-        assert_eq!(
-            Scalar::MAX.to_str_radix(16, 0, true),
-            "FFFFFFFF00000000"
-        );
+        assert_eq!(Scalar::MAX.to_str_radix(16, 0, true), "FFFFFFFF00000000");
     }
 
     #[test]
@@ -1326,10 +1315,7 @@ mod tests {
     fn test_from_u256_mod_n() {
         assert_eq!(Scalar::from_u256_mod_n(0.into()), from_const(0));
         assert_eq!(Scalar::from_u256_mod_n(42.into()), from_const(42));
-        assert_eq!(
-            Scalar::from_u256_mod_n(MODULUS.into()),
-            from_const(0)
-        );
+        assert_eq!(Scalar::from_u256_mod_n(MODULUS.into()), from_const(0));
         assert_eq!(
             Scalar::from_u256_mod_n(U256::from(MODULUS) + U256::from(1)),
             from_const(1)
