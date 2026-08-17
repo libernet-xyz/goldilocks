@@ -40,8 +40,20 @@ const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
 
 #[inline]
 const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
-    let wide_value = (lhs as u128) * (rhs as u128);
-    (wide_value % (MODULUS as u128)) as u64
+    let wide = (lhs as u128) * (rhs as u128);
+    let lo = wide as u64;
+    let hi = (wide >> 64) as u64;
+    let hi_hi = hi >> 32;
+    let hi_lo = hi & EPSILON;
+
+    let (t0, borrow) = lo.overflowing_sub(hi_hi);
+    let t0 = if borrow { t0.wrapping_sub(EPSILON) } else { t0 };
+
+    let t1 = hi_lo * EPSILON;
+
+    let (t2, overflow) = t0.overflowing_add(t1);
+    let t2 = if overflow { t2 + EPSILON } else { t2 };
+    if t2 < MODULUS { t2 } else { t2 - MODULUS }
 }
 
 /// A Goldilocks scalar.
