@@ -493,17 +493,17 @@ impl Field for Scalar {
     }
 
     fn invert(&self) -> CtOption<Self> {
-        let a = base::Scalar::from_const(self.0);
-        let b = base::Scalar::from_const(self.1);
-        let norm = b * b - a * a * base::Scalar::from_const(QUADRATIC_NON_RESIDUE);
+        let a = base::Scalar(self.0);
+        let b = base::Scalar(self.1);
+        let norm = b * b - a * a * base::Scalar(QUADRATIC_NON_RESIDUE);
         let conjugate = Self(gl_sub(0, self.0), self.1);
         norm.invert().map(|inverse_norm| conjugate * inverse_norm)
     }
 
     fn invert_vartime(&self) -> Option<Self> {
-        let a = base::Scalar::from_const(self.0);
-        let b = base::Scalar::from_const(self.1);
-        let norm = b * b - a * a * base::Scalar::from_const(QUADRATIC_NON_RESIDUE);
+        let a = base::Scalar(self.0);
+        let b = base::Scalar(self.1);
+        let norm = b * b - a * a * base::Scalar(QUADRATIC_NON_RESIDUE);
         let conjugate = Self(gl_sub(0, self.0), self.1);
         norm.invert_vartime()
             .map(|inverse_norm| conjugate * inverse_norm)
@@ -822,14 +822,14 @@ mod tests {
     #[test]
     fn test_add_base_scalar() {
         let lhs = Scalar(1, 2);
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
         assert_eq!(lhs + rhs, Scalar(1, 7));
         assert_eq!(lhs + &rhs, Scalar(1, 7));
     }
 
     #[test]
     fn test_add_assign_base_scalar() {
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
 
         let mut lhs = Scalar(1, 2);
         lhs += rhs;
@@ -879,14 +879,14 @@ mod tests {
     #[test]
     fn test_sub_base_scalar() {
         let lhs = Scalar(1, 7);
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
         assert_eq!(lhs - rhs, Scalar(1, 2));
         assert_eq!(lhs - &rhs, Scalar(1, 2));
     }
 
     #[test]
     fn test_sub_assign_base_scalar() {
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
 
         let mut lhs = Scalar(1, 7);
         lhs -= rhs;
@@ -936,14 +936,14 @@ mod tests {
     #[test]
     fn test_mul_base_scalar() {
         let lhs = Scalar(2, 3);
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
         assert_eq!(lhs * rhs, Scalar(10, 15));
         assert_eq!(lhs * &rhs, Scalar(10, 15));
     }
 
     #[test]
     fn test_mul_assign_base_scalar() {
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
 
         let mut lhs = Scalar(2, 3);
         lhs *= rhs;
@@ -971,14 +971,14 @@ mod tests {
     #[test]
     fn test_div_base_scalar() {
         let lhs = Scalar(10, 15);
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
         assert_eq!(lhs / rhs, Scalar(2, 3));
         assert_eq!(lhs / &rhs, Scalar(2, 3));
     }
 
     #[test]
     fn test_div_assign_base_scalar() {
-        let rhs = base::Scalar::from_const(5);
+        let rhs = base::Scalar(5);
 
         let mut lhs = Scalar(10, 15);
         lhs /= rhs;
@@ -1029,7 +1029,7 @@ mod tests {
 
     #[test]
     fn test_from_base_scalar() {
-        assert_eq!(Scalar::from(base::Scalar::from_const(42)), Scalar(0, 42));
+        assert_eq!(Scalar::from(base::Scalar(42)), Scalar(0, 42));
         assert_eq!(Scalar::from(base::Scalar::ZERO), Scalar::ZERO);
     }
 

@@ -812,8 +812,8 @@ mod tests {
     #[test]
     fn test_add_gl2() {
         let lhs = from_const(5);
-        let rhs = gl2::Scalar::from_const(7);
-        let expected = gl2::Scalar::from_const(12);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 12);
         assert_eq!(lhs + rhs, expected);
         assert_eq!(lhs + &rhs, expected);
     }
@@ -872,8 +872,8 @@ mod tests {
     #[test]
     fn test_sub_gl2() {
         let lhs = from_const(12);
-        let rhs = gl2::Scalar::from_const(7);
-        let expected = gl2::Scalar::from_const(5);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 5);
         assert_eq!(lhs - rhs, expected);
         assert_eq!(lhs - &rhs, expected);
     }
@@ -912,8 +912,8 @@ mod tests {
     #[test]
     fn test_mul_gl2() {
         let lhs = from_const(12);
-        let rhs = gl2::Scalar::from_const(7);
-        let expected = gl2::Scalar::from_const(84);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 84);
         assert_eq!(lhs * rhs, expected);
         assert_eq!(lhs * &rhs, expected);
     }
@@ -934,8 +934,8 @@ mod tests {
     #[test]
     fn test_div_gl2() {
         let lhs = from_const(84);
-        let rhs = gl2::Scalar::from_const(7);
-        let expected = gl2::Scalar::from_const(12);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 12);
         assert_eq!(lhs / rhs, expected);
         assert_eq!(lhs / &rhs, expected);
     }
