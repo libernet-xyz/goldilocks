@@ -1,7 +1,9 @@
 use crate::base;
 use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
+use anyhow::anyhow;
+use primitive_types::{H256, U256, U512};
 use rand_core::{CryptoRng, TryCryptoRng};
-use starkom_ff::{Field, Field64};
+use starkom_ff::{Field, Field64, Field128};
 use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -326,6 +328,21 @@ impl TryFrom<usize> for Scalar {
     }
 }
 
+impl TryFrom<u128> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u128) -> Result<Self, Self::Error> {
+        let modulus = MODULUS as u128;
+        let hi = value / modulus;
+        let lo = value % modulus;
+        if hi < modulus {
+            Ok(Self(hi as u64, lo as u64))
+        } else {
+            Err(anyhow!("{:#x} exceeds the Goldilocks^2 range", value))
+        }
+    }
+}
+
 impl Field for Scalar {
     const LEN: usize = 16;
 
@@ -377,7 +394,7 @@ impl Field for Scalar {
     }
 
     fn pow(mut self, exp: Self) -> Self {
-        let mut exponent = (exp.0 as u128) * (MODULUS as u128) + (exp.1 as u128);
+        let mut exponent = exp.to_u128();
         let mut result = Self::ONE;
         for _ in 0..Self::NUM_BITS {
             let product = result * self;
@@ -389,7 +406,7 @@ impl Field for Scalar {
     }
 
     fn pow_vartime(mut self, exp: Self) -> Self {
-        let mut exponent = (exp.0 as u128) * (MODULUS as u128) + (exp.1 as u128);
+        let mut exponent = exp.to_u128();
         let mut result = Self::ONE;
         while exponent != 0 {
             if (exponent & 1) != 0 {
@@ -403,8 +420,8 @@ impl Field for Scalar {
 
     fn div_int(&self, rhs: &Self) -> (Self, Self) {
         let modulus = MODULUS as u128;
-        let lhs_value = (self.0 as u128) * modulus + (self.1 as u128);
-        let rhs_value = (rhs.0 as u128) * modulus + (rhs.1 as u128);
+        let lhs_value = self.to_u128();
+        let rhs_value = rhs.to_u128();
         let quotient = lhs_value / rhs_value;
         let remainder = lhs_value % rhs_value;
         (
@@ -471,7 +488,7 @@ impl Field for Scalar {
         } else {
             CHARACTERS_LOWER_CASE
         };
-        let mut value = (self.0 as u128) * (MODULUS as u128) + (self.1 as u128);
+        let mut value = self.to_u128();
         let mut s = String::default();
         let radix = radix as u128;
         while value != 0 {
@@ -502,6 +519,50 @@ impl Field for Scalar {
         } else {
             Some(self.1 as u16)
         }
+    }
+}
+
+impl Field128 for Scalar {
+    fn to_le_bytes(&self) -> [u8; 16] {
+        self.to_u128().to_le_bytes()
+    }
+
+    fn to_be_bytes(&self) -> [u8; 16] {
+        self.to_u128().to_be_bytes()
+    }
+
+    fn from_u256_mod_n(u256: U256) -> Self {
+        let modulus = U256::from(MODULUS);
+        let value = u256 % (modulus * modulus);
+        let hi = value / modulus;
+        let lo = value % modulus;
+        Self(hi.as_u64(), lo.as_u64())
+    }
+
+    fn from_h256(h256: H256) -> Self {
+        Self::from_u256_mod_n(U256::from_little_endian(h256.as_bytes()))
+    }
+
+    fn try_to_u32(&self) -> CtOption<u32> {
+        let hi_is_zero = Choice::from((self.0 == 0) as u8);
+        let lo_fits = Choice::from((self.1 <= u32::MAX as u64) as u8);
+        CtOption::new(self.1 as u32, hi_is_zero & lo_fits)
+    }
+
+    fn try_to_u64(&self) -> CtOption<u64> {
+        CtOption::new(self.1, ((self.0 == 0) as u8).into())
+    }
+
+    fn to_u128(&self) -> u128 {
+        (self.0 as u128) * (MODULUS as u128) + (self.1 as u128)
+    }
+
+    fn to_u256(&self) -> U256 {
+        U256::from(self.to_u128())
+    }
+
+    fn to_u512(&self) -> U512 {
+        U512::from(self.to_u128())
     }
 }
 
@@ -761,6 +822,19 @@ mod tests {
     }
 
     #[test]
+    fn test_try_from_u128() {
+        assert_eq!(Scalar::try_from(0u128).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(42u128).unwrap(), from_const(42));
+        assert_eq!(
+            Scalar::try_from(Scalar::MAX.to_u128()).unwrap(),
+            Scalar::MAX
+        );
+        let modulus_squared = (MODULUS as u128) * (MODULUS as u128);
+        assert!(Scalar::try_from(modulus_squared).is_err());
+        assert!(Scalar::try_from(u128::MAX).is_err());
+    }
+
+    #[test]
     fn test_is_even() {
         assert!(bool::from(Scalar(0, 0).is_even()));
         assert!(bool::from(Scalar(1, 1).is_even()));
@@ -987,5 +1061,94 @@ mod tests {
         assert_eq!(from_const(u16::MAX as u64).try_to_u16().unwrap(), u16::MAX);
         assert!(from_const(u16::MAX as u64 + 1).try_to_u16().is_none());
         assert!(Scalar(1, 0).try_to_u16().is_none());
+    }
+
+    #[test]
+    fn test_field128_to_le_bytes() {
+        let value = Scalar(1, 42);
+        let n = (value.0 as u128) * (MODULUS as u128) + (value.1 as u128);
+        assert_eq!(value.to_le_bytes(), n.to_le_bytes());
+    }
+
+    #[test]
+    fn test_field128_to_be_bytes() {
+        let value = Scalar(1, 42);
+        let n = (value.0 as u128) * (MODULUS as u128) + (value.1 as u128);
+        assert_eq!(value.to_be_bytes(), n.to_be_bytes());
+    }
+
+    #[test]
+    fn test_field128_le_be_bytes_roundtrip() {
+        let value = Scalar(7, 11);
+        assert_eq!(
+            Scalar::try_from_le_bytes(&value.to_le_bytes()).unwrap(),
+            value
+        );
+        assert_eq!(
+            Scalar::try_from_be_bytes(&value.to_be_bytes()).unwrap(),
+            value
+        );
+    }
+
+    #[test]
+    fn test_from_u256_mod_n() {
+        assert_eq!(Scalar::from_u256_mod_n(U256::from(0)), from_const(0));
+        assert_eq!(Scalar::from_u256_mod_n(U256::from(42)), from_const(42));
+        assert_eq!(Scalar::from_u256_mod_n(U256::from(MODULUS)), Scalar(1, 0));
+        let modulus_squared = U256::from(MODULUS) * U256::from(MODULUS);
+        assert_eq!(Scalar::from_u256_mod_n(modulus_squared), Scalar::ZERO);
+        assert_eq!(
+            Scalar::from_u256_mod_n(modulus_squared + U256::from(1)),
+            Scalar::ONE
+        );
+    }
+
+    #[test]
+    fn test_from_h256() {
+        let mut bytes = [0u8; 32];
+        bytes[0..8].copy_from_slice(&42u64.to_le_bytes());
+        assert_eq!(Scalar::from_h256(H256::from_slice(&bytes)), from_const(42));
+    }
+
+    #[test]
+    fn test_field128_try_to_u32() {
+        assert_eq!(from_const(0).try_to_u32().unwrap(), 0);
+        assert_eq!(from_const(u32::MAX as u64).try_to_u32().unwrap(), u32::MAX);
+        assert!(bool::from(
+            from_const(u32::MAX as u64 + 1).try_to_u32().is_none()
+        ));
+        assert!(bool::from(Scalar(1, 0).try_to_u32().is_none()));
+    }
+
+    #[test]
+    fn test_try_to_u64() {
+        assert_eq!(from_const(0).try_to_u64().unwrap(), 0);
+        assert_eq!(from_const(42).try_to_u64().unwrap(), 42);
+        assert_eq!(Scalar(0, MODULUS - 1).try_to_u64().unwrap(), MODULUS - 1);
+        assert!(bool::from(Scalar(1, 0).try_to_u64().is_none()));
+    }
+
+    #[test]
+    fn test_field128_to_u128() {
+        assert_eq!(from_const(0).to_u128(), 0);
+        assert_eq!(from_const(42).to_u128(), 42);
+        assert_eq!(
+            Scalar::MAX.to_u128(),
+            (MODULUS as u128) * (MODULUS as u128) - 1
+        );
+    }
+
+    #[test]
+    fn test_field128_to_u256() {
+        assert_eq!(from_const(0).to_u256(), U256::from(0));
+        assert_eq!(from_const(42).to_u256(), U256::from(42));
+        assert_eq!(Scalar::MAX.to_u256(), U256::from(Scalar::MAX.to_u128()));
+    }
+
+    #[test]
+    fn test_field128_to_u512() {
+        assert_eq!(from_const(0).to_u512(), U512::from(0));
+        assert_eq!(from_const(42).to_u512(), U512::from(42));
+        assert_eq!(Scalar::MAX.to_u512(), U512::from(Scalar::MAX.to_u128()));
     }
 }
