@@ -173,6 +173,32 @@ impl<'a> Sub<&'a gl2::Scalar> for Scalar {
     }
 }
 
+impl Sub<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn sub(self, rhs: gl4::Scalar) -> Self::Output {
+        gl4::Scalar(
+            gl_sub(0, rhs.0),
+            gl_sub(0, rhs.1),
+            gl_sub(0, rhs.2),
+            gl_sub(self.0, rhs.3),
+        )
+    }
+}
+
+impl<'a> Sub<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn sub(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        gl4::Scalar(
+            gl_sub(0, rhs.0),
+            gl_sub(0, rhs.1),
+            gl_sub(0, rhs.2),
+            gl_sub(self.0, rhs.3),
+        )
+    }
+}
+
 impl Mul<Self> for Scalar {
     type Output = Scalar;
 
@@ -902,6 +928,15 @@ mod tests {
         let lhs = from_const(12);
         let rhs = gl2::Scalar(0, 7);
         let expected = gl2::Scalar(0, 5);
+        assert_eq!(lhs - rhs, expected);
+        assert_eq!(lhs - &rhs, expected);
+    }
+
+    #[test]
+    fn test_sub_gl4() {
+        let lhs = from_const(5);
+        let rhs = gl4::Scalar(1, 2, 3, 7);
+        let expected = gl4::Scalar(MODULUS - 1, MODULUS - 2, MODULUS - 3, MODULUS - 2);
         assert_eq!(lhs - rhs, expected);
         assert_eq!(lhs - &rhs, expected);
     }

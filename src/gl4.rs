@@ -1,7 +1,7 @@
 use crate::base;
 use crate::gl2;
-use crate::helpers::{MODULUS, gl_add};
-use std::ops::{Add, AddAssign};
+use crate::helpers::{MODULUS, gl_add, gl_sub};
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
 use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
 };
@@ -167,7 +167,120 @@ impl<'a> AddAssign<&'a gl2::Scalar> for Scalar {
     }
 }
 
-// TODO
+impl Neg for Scalar {
+    type Output = Scalar;
+
+    fn neg(self) -> Self::Output {
+        Self(
+            gl_sub(0, self.0),
+            gl_sub(0, self.1),
+            gl_sub(0, self.2),
+            gl_sub(0, self.3),
+        )
+    }
+}
+
+impl Sub<Self> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(
+            gl_sub(self.0, rhs.0),
+            gl_sub(self.1, rhs.1),
+            gl_sub(self.2, rhs.2),
+            gl_sub(self.3, rhs.3),
+        )
+    }
+}
+
+impl<'a> Sub<&'a Self> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: &'a Self) -> Self::Output {
+        Self(
+            gl_sub(self.0, rhs.0),
+            gl_sub(self.1, rhs.1),
+            gl_sub(self.2, rhs.2),
+            gl_sub(self.3, rhs.3),
+        )
+    }
+}
+
+impl SubAssign<Self> for Scalar {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 = gl_sub(self.0, rhs.0);
+        self.1 = gl_sub(self.1, rhs.1);
+        self.2 = gl_sub(self.2, rhs.2);
+        self.3 = gl_sub(self.3, rhs.3);
+    }
+}
+
+impl<'a> SubAssign<&'a Self> for Scalar {
+    fn sub_assign(&mut self, rhs: &'a Self) {
+        self.0 = gl_sub(self.0, rhs.0);
+        self.1 = gl_sub(self.1, rhs.1);
+        self.2 = gl_sub(self.2, rhs.2);
+        self.3 = gl_sub(self.3, rhs.3);
+    }
+}
+
+impl Sub<base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: base::Scalar) -> Self::Output {
+        Self(self.0, self.1, self.2, gl_sub(self.3, rhs.0))
+    }
+}
+
+impl<'a> Sub<&'a base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: &'a base::Scalar) -> Self::Output {
+        Self(self.0, self.1, self.2, gl_sub(self.3, rhs.0))
+    }
+}
+
+impl SubAssign<base::Scalar> for Scalar {
+    fn sub_assign(&mut self, rhs: base::Scalar) {
+        self.3 = gl_sub(self.3, rhs.0);
+    }
+}
+
+impl<'a> SubAssign<&'a base::Scalar> for Scalar {
+    fn sub_assign(&mut self, rhs: &'a base::Scalar) {
+        self.3 = gl_sub(self.3, rhs.0);
+    }
+}
+
+impl Sub<gl2::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: gl2::Scalar) -> Self::Output {
+        Self(self.0, self.1, gl_sub(self.2, rhs.0), gl_sub(self.3, rhs.1))
+    }
+}
+
+impl<'a> Sub<&'a gl2::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        Self(self.0, self.1, gl_sub(self.2, rhs.0), gl_sub(self.3, rhs.1))
+    }
+}
+
+impl SubAssign<gl2::Scalar> for Scalar {
+    fn sub_assign(&mut self, rhs: gl2::Scalar) {
+        self.2 = gl_sub(self.2, rhs.0);
+        self.3 = gl_sub(self.3, rhs.1);
+    }
+}
+
+impl<'a> SubAssign<&'a gl2::Scalar> for Scalar {
+    fn sub_assign(&mut self, rhs: &'a gl2::Scalar) {
+        self.2 = gl_sub(self.2, rhs.0);
+        self.3 = gl_sub(self.3, rhs.1);
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -319,5 +432,89 @@ mod tests {
         let mut lhs = Scalar(1, 2, 3, 4);
         lhs += &rhs;
         assert_eq!(lhs, Scalar(1, 2, 8, 10));
+    }
+
+    #[test]
+    fn test_neg() {
+        assert_eq!(-Scalar(0, 0, 0, 0), Scalar(0, 0, 0, 0));
+        assert_eq!(
+            -Scalar(1, 2, 3, 4),
+            Scalar(MODULUS - 1, MODULUS - 2, MODULUS - 3, MODULUS - 4)
+        );
+        assert_eq!(Scalar(1, 2, 3, 4) + -Scalar(1, 2, 3, 4), Scalar(0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_sub() {
+        let lhs = Scalar(6, 8, 10, 12);
+        let rhs = Scalar(5, 6, 7, 8);
+        assert_eq!(lhs - rhs, Scalar(1, 2, 3, 4));
+        assert_eq!(lhs - &rhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_sub_wraparound() {
+        let lhs = Scalar(1, 1, 1, 1);
+        let rhs = Scalar(2, 3, 4, 5);
+        assert_eq!(
+            lhs - rhs,
+            Scalar(MODULUS - 1, MODULUS - 2, MODULUS - 3, MODULUS - 4)
+        );
+    }
+
+    #[test]
+    fn test_sub_assign() {
+        let mut lhs = Scalar(6, 8, 10, 12);
+        lhs -= Scalar(5, 6, 7, 8);
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_sub_assign_ref() {
+        let mut lhs = Scalar(6, 8, 10, 12);
+        lhs -= &Scalar(5, 6, 7, 8);
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_sub_base_scalar() {
+        let lhs = Scalar(1, 2, 3, 9);
+        let rhs = base::Scalar(5);
+        assert_eq!(lhs - rhs, Scalar(1, 2, 3, 4));
+        assert_eq!(lhs - &rhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_sub_assign_base_scalar() {
+        let rhs = base::Scalar(5);
+
+        let mut lhs = Scalar(1, 2, 3, 9);
+        lhs -= rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+
+        let mut lhs = Scalar(1, 2, 3, 9);
+        lhs -= &rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_sub_gl2() {
+        let lhs = Scalar(1, 2, 8, 10);
+        let rhs = gl2::Scalar(5, 6);
+        assert_eq!(lhs - rhs, Scalar(1, 2, 3, 4));
+        assert_eq!(lhs - &rhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_sub_assign_gl2() {
+        let rhs = gl2::Scalar(5, 6);
+
+        let mut lhs = Scalar(1, 2, 8, 10);
+        lhs -= rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+
+        let mut lhs = Scalar(1, 2, 8, 10);
+        lhs -= &rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
     }
 }
