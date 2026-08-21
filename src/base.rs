@@ -1,3 +1,4 @@
+use crate::gl2;
 use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
 use anyhow::Context;
 use primitive_types::{U256, U512};
@@ -83,6 +84,22 @@ impl<'a> AddAssign<&'a Self> for Scalar {
     }
 }
 
+impl Add<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn add(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) + rhs
+    }
+}
+
+impl<'a> Add<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn add(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) + rhs
+    }
+}
+
 impl Neg for Scalar {
     type Output = Scalar;
 
@@ -123,6 +140,22 @@ impl<'a> SubAssign<&'a Self> for Scalar {
     }
 }
 
+impl Sub<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn sub(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) - rhs
+    }
+}
+
+impl<'a> Sub<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn sub(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) - rhs
+    }
+}
+
 impl Mul<Self> for Scalar {
     type Output = Scalar;
 
@@ -151,6 +184,22 @@ impl<'a> MulAssign<&'a Self> for Scalar {
     }
 }
 
+impl Mul<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn mul(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) * rhs
+    }
+}
+
+impl<'a> Mul<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn mul(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) * rhs
+    }
+}
+
 impl Div<Self> for Scalar {
     type Output = Scalar;
 
@@ -176,6 +225,22 @@ impl DivAssign<Self> for Scalar {
 impl<'a> DivAssign<&'a Self> for Scalar {
     fn div_assign(&mut self, rhs: &'a Self) {
         self.0 = gl_mul(self.0, rhs.invert_unwrap().0);
+    }
+}
+
+impl Div<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn div(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) / rhs
+    }
+}
+
+impl<'a> Div<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn div(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar::from(self) / rhs
     }
 }
 
@@ -744,6 +809,15 @@ mod tests {
         assert_eq!(lhs, from_const(5));
     }
 
+    #[test]
+    fn test_add_gl2() {
+        let lhs = from_const(5);
+        let rhs = gl2::Scalar::from_const(7);
+        let expected = gl2::Scalar::from_const(12);
+        assert_eq!(lhs + rhs, expected);
+        assert_eq!(lhs + &rhs, expected);
+    }
+
     fn test_neg_impl(value: Scalar) {
         assert_eq!(-value, Scalar::MAX - value + Scalar::ONE);
     }
@@ -796,6 +870,15 @@ mod tests {
     }
 
     #[test]
+    fn test_sub_gl2() {
+        let lhs = from_const(12);
+        let rhs = gl2::Scalar::from_const(7);
+        let expected = gl2::Scalar::from_const(5);
+        assert_eq!(lhs - rhs, expected);
+        assert_eq!(lhs - &rhs, expected);
+    }
+
+    #[test]
     fn test_mul_by_zero() {
         assert_eq!(Scalar::ZERO * from_const(42), Scalar::ZERO);
         assert_eq!(Scalar::ZERO * &from_const(42), Scalar::ZERO);
@@ -827,6 +910,15 @@ mod tests {
     }
 
     #[test]
+    fn test_mul_gl2() {
+        let lhs = from_const(12);
+        let rhs = gl2::Scalar::from_const(7);
+        let expected = gl2::Scalar::from_const(84);
+        assert_eq!(lhs * rhs, expected);
+        assert_eq!(lhs * &rhs, expected);
+    }
+
+    #[test]
     fn test_div_by_one() {
         assert_eq!(from_const(42) / Scalar::ONE, from_const(42));
         assert_eq!(from_const(42) / &Scalar::ONE, from_const(42));
@@ -837,6 +929,15 @@ mod tests {
         assert_eq!(from_const(408) / from_const(34), from_const(12));
         assert_eq!(from_const(408) / &from_const(34), from_const(12));
         assert_eq!(from_const(408) / from_const(12), from_const(34));
+    }
+
+    #[test]
+    fn test_div_gl2() {
+        let lhs = from_const(84);
+        let rhs = gl2::Scalar::from_const(7);
+        let expected = gl2::Scalar::from_const(12);
+        assert_eq!(lhs / rhs, expected);
+        assert_eq!(lhs / &rhs, expected);
     }
 
     #[test]

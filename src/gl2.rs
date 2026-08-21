@@ -96,6 +96,34 @@ impl<'a> AddAssign<&'a Self> for Scalar {
     }
 }
 
+impl Add<base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn add(self, rhs: base::Scalar) -> Self::Output {
+        self + Self::from(rhs)
+    }
+}
+
+impl<'a> Add<&'a base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn add(self, rhs: &'a base::Scalar) -> Self::Output {
+        self + Self::from(*rhs)
+    }
+}
+
+impl AddAssign<base::Scalar> for Scalar {
+    fn add_assign(&mut self, rhs: base::Scalar) {
+        *self += Self::from(rhs);
+    }
+}
+
+impl<'a> AddAssign<&'a base::Scalar> for Scalar {
+    fn add_assign(&mut self, rhs: &'a base::Scalar) {
+        *self += Self::from(*rhs);
+    }
+}
+
 impl Neg for Scalar {
     type Output = Scalar;
 
@@ -131,6 +159,34 @@ impl<'a> SubAssign<&'a Self> for Scalar {
     fn sub_assign(&mut self, rhs: &'a Self) {
         self.0 = gl_sub(self.0, rhs.0);
         self.1 = gl_sub(self.1, rhs.1);
+    }
+}
+
+impl Sub<base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: base::Scalar) -> Self::Output {
+        self - Self::from(rhs)
+    }
+}
+
+impl<'a> Sub<&'a base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn sub(self, rhs: &'a base::Scalar) -> Self::Output {
+        self - Self::from(*rhs)
+    }
+}
+
+impl SubAssign<base::Scalar> for Scalar {
+    fn sub_assign(&mut self, rhs: base::Scalar) {
+        *self -= Self::from(rhs);
+    }
+}
+
+impl<'a> SubAssign<&'a base::Scalar> for Scalar {
+    fn sub_assign(&mut self, rhs: &'a base::Scalar) {
+        *self -= Self::from(*rhs);
     }
 }
 
@@ -186,6 +242,34 @@ impl<'a> MulAssign<&'a Self> for Scalar {
     }
 }
 
+impl Mul<base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: base::Scalar) -> Self::Output {
+        self * Self::from(rhs)
+    }
+}
+
+impl<'a> Mul<&'a base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: &'a base::Scalar) -> Self::Output {
+        self * Self::from(*rhs)
+    }
+}
+
+impl MulAssign<base::Scalar> for Scalar {
+    fn mul_assign(&mut self, rhs: base::Scalar) {
+        *self *= Self::from(rhs);
+    }
+}
+
+impl<'a> MulAssign<&'a base::Scalar> for Scalar {
+    fn mul_assign(&mut self, rhs: &'a base::Scalar) {
+        *self *= Self::from(*rhs);
+    }
+}
+
 impl Div<Self> for Scalar {
     type Output = Scalar;
 
@@ -211,6 +295,34 @@ impl DivAssign<Self> for Scalar {
 impl<'a> DivAssign<&'a Self> for Scalar {
     fn div_assign(&mut self, rhs: &'a Self) {
         *self = *self * rhs.invert_unwrap();
+    }
+}
+
+impl Div<base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn div(self, rhs: base::Scalar) -> Self::Output {
+        self / Self::from(rhs)
+    }
+}
+
+impl<'a> Div<&'a base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn div(self, rhs: &'a base::Scalar) -> Self::Output {
+        self / Self::from(*rhs)
+    }
+}
+
+impl DivAssign<base::Scalar> for Scalar {
+    fn div_assign(&mut self, rhs: base::Scalar) {
+        *self /= Self::from(rhs);
+    }
+}
+
+impl<'a> DivAssign<&'a base::Scalar> for Scalar {
+    fn div_assign(&mut self, rhs: &'a base::Scalar) {
+        *self /= Self::from(*rhs);
     }
 }
 
@@ -317,6 +429,12 @@ impl From<u32> for Scalar {
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
         Self(value / MODULUS, value % MODULUS)
+    }
+}
+
+impl From<base::Scalar> for Scalar {
+    fn from(value: base::Scalar) -> Self {
+        Self(0, value.to_u64())
     }
 }
 
@@ -704,6 +822,27 @@ mod tests {
     }
 
     #[test]
+    fn test_add_base_scalar() {
+        let lhs = Scalar(1, 2);
+        let rhs = base::Scalar::from_const(5);
+        assert_eq!(lhs + rhs, Scalar(1, 7));
+        assert_eq!(lhs + &rhs, Scalar(1, 7));
+    }
+
+    #[test]
+    fn test_add_assign_base_scalar() {
+        let rhs = base::Scalar::from_const(5);
+
+        let mut lhs = Scalar(1, 2);
+        lhs += rhs;
+        assert_eq!(lhs, Scalar(1, 7));
+
+        let mut lhs = Scalar(1, 2);
+        lhs += &rhs;
+        assert_eq!(lhs, Scalar(1, 7));
+    }
+
+    #[test]
     fn test_neg() {
         assert_eq!(-Scalar::ZERO, Scalar::ZERO);
         assert_eq!(-Scalar(1, 2), Scalar(MODULUS - 1, MODULUS - 2));
@@ -737,6 +876,27 @@ mod tests {
         let mut lhs = Scalar(15, 27);
         lhs -= &Scalar(5, 7);
         assert_eq!(lhs, Scalar(10, 20));
+    }
+
+    #[test]
+    fn test_sub_base_scalar() {
+        let lhs = Scalar(1, 7);
+        let rhs = base::Scalar::from_const(5);
+        assert_eq!(lhs - rhs, Scalar(1, 2));
+        assert_eq!(lhs - &rhs, Scalar(1, 2));
+    }
+
+    #[test]
+    fn test_sub_assign_base_scalar() {
+        let rhs = base::Scalar::from_const(5);
+
+        let mut lhs = Scalar(1, 7);
+        lhs -= rhs;
+        assert_eq!(lhs, Scalar(1, 2));
+
+        let mut lhs = Scalar(1, 7);
+        lhs -= &rhs;
+        assert_eq!(lhs, Scalar(1, 2));
     }
 
     #[test]
@@ -776,6 +936,27 @@ mod tests {
     }
 
     #[test]
+    fn test_mul_base_scalar() {
+        let lhs = Scalar(2, 3);
+        let rhs = base::Scalar::from_const(5);
+        assert_eq!(lhs * rhs, Scalar(10, 15));
+        assert_eq!(lhs * &rhs, Scalar(10, 15));
+    }
+
+    #[test]
+    fn test_mul_assign_base_scalar() {
+        let rhs = base::Scalar::from_const(5);
+
+        let mut lhs = Scalar(2, 3);
+        lhs *= rhs;
+        assert_eq!(lhs, Scalar(10, 15));
+
+        let mut lhs = Scalar(2, 3);
+        lhs *= &rhs;
+        assert_eq!(lhs, Scalar(10, 15));
+    }
+
+    #[test]
     fn test_div_by_one() {
         assert_eq!(Scalar(2, 3) / Scalar::ONE, Scalar(2, 3));
         assert_eq!(Scalar(2, 3) / &Scalar::ONE, Scalar(2, 3));
@@ -787,6 +968,27 @@ mod tests {
         let rhs = Scalar(5, 7);
         assert_eq!((lhs * rhs) / rhs, lhs);
         assert_eq!((lhs * rhs) / &rhs, lhs);
+    }
+
+    #[test]
+    fn test_div_base_scalar() {
+        let lhs = Scalar(10, 15);
+        let rhs = base::Scalar::from_const(5);
+        assert_eq!(lhs / rhs, Scalar(2, 3));
+        assert_eq!(lhs / &rhs, Scalar(2, 3));
+    }
+
+    #[test]
+    fn test_div_assign_base_scalar() {
+        let rhs = base::Scalar::from_const(5);
+
+        let mut lhs = Scalar(10, 15);
+        lhs /= rhs;
+        assert_eq!(lhs, Scalar(2, 3));
+
+        let mut lhs = Scalar(10, 15);
+        lhs /= &rhs;
+        assert_eq!(lhs, Scalar(2, 3));
     }
 
     #[test]
@@ -813,6 +1015,24 @@ mod tests {
     fn test_from_u16() {
         assert_eq!(Scalar::from(0u16), from_const(0));
         assert_eq!(Scalar::from(u16::MAX), from_const(u16::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u32() {
+        assert_eq!(Scalar::from(0u32), from_const(0));
+        assert_eq!(Scalar::from(u32::MAX), from_const(u32::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u64() {
+        assert_eq!(Scalar::from(0u64), from_const(0));
+        assert_eq!(Scalar::from(u64::MAX), from_const(u64::MAX));
+    }
+
+    #[test]
+    fn test_from_base_scalar() {
+        assert_eq!(Scalar::from(base::Scalar::from_const(42)), Scalar(0, 42));
+        assert_eq!(Scalar::from(base::Scalar::ZERO), Scalar::ZERO);
     }
 
     #[test]
