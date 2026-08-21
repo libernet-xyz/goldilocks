@@ -3,6 +3,7 @@ pub(crate) const MODULUS: u64 = 0xffffffff00000001u64;
 
 const EPSILON: u64 = (1 << 32) - 1;
 
+/// Goldilocks addition.
 #[inline]
 pub(crate) const fn gl_add(lhs: u64, rhs: u64) -> u64 {
     let (sum, overflow) = lhs.overflowing_add(rhs);
@@ -10,6 +11,7 @@ pub(crate) const fn gl_add(lhs: u64, rhs: u64) -> u64 {
     if sum < MODULUS { sum } else { sum - MODULUS }
 }
 
+/// Goldilocks subtraction.
 #[inline]
 pub(crate) const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
     if rhs > lhs {
@@ -19,6 +21,7 @@ pub(crate) const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
     }
 }
 
+/// Goldilocks multiplication.
 #[inline]
 pub(crate) const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
     let wide = (lhs as u128) * (rhs as u128);

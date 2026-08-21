@@ -35,20 +35,6 @@ impl Scalar {
     }
 }
 
-/// Alias for [`Scalar::from_const`].
-#[inline(always)]
-pub const fn from_const(value: u64) -> Scalar {
-    Scalar::from_const(value)
-}
-
-/// Parses a scalar from a string using the [`FromStr`] trait and unwrapping the result.
-///
-/// REQUIRES: the input string must be a static one known to have a valid scalar.
-#[inline]
-pub fn parse_scalar(s: &'static str) -> Scalar {
-    s.parse().unwrap()
-}
-
 impl ConstantTimeEq for Scalar {
     fn ct_eq(&self, other: &Self) -> Choice {
         ((self.0 == other.0) as u8).into()
@@ -526,6 +512,16 @@ impl PrimeField64 for Scalar {}
 mod tests {
     use super::*;
     use std::cmp::Ordering;
+
+    #[inline]
+    const fn from_const(value: u64) -> Scalar {
+        Scalar::from_const(value)
+    }
+
+    #[inline]
+    fn parse_scalar(s: &'static str) -> Scalar {
+        s.parse().unwrap()
+    }
 
     #[test]
     fn test_from_const() {
