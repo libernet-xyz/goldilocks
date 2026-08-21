@@ -3,7 +3,7 @@ use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
 use anyhow::anyhow;
 use primitive_types::{H256, U256, U512};
 use rand_core::{CryptoRng, TryCryptoRng};
-use starkom_ff::{Field, Field64, Field128};
+use starkom_ff::{Field, Field128};
 use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -36,7 +36,7 @@ const QUADRATIC_NON_RESIDUE: u64 = 7;
 /// most significant and `Scalar::1` is the least significant. This way Rust's automatic comparison
 /// trait implementations work as intended.
 #[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Scalar(u64, u64);
+pub struct Scalar(pub(crate) u64, pub(crate) u64);
 
 impl Scalar {
     /// Constructs a Goldilocks^2 scalar from its raw 64-bit value.
@@ -434,7 +434,7 @@ impl From<u64> for Scalar {
 
 impl From<base::Scalar> for Scalar {
     fn from(value: base::Scalar) -> Self {
-        Self(0, value.to_u64())
+        Self(0, value.0)
     }
 }
 
@@ -476,22 +476,19 @@ impl Field for Scalar {
 
     fn try_random<R: TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
         Ok(Self(
-            base::Scalar::try_random(rng)?.to_u64(),
-            base::Scalar::try_random(rng)?.to_u64(),
+            base::Scalar::try_random(rng)?.0,
+            base::Scalar::try_random(rng)?.0,
         ))
     }
 
     fn random<R: CryptoRng>(rng: &mut R) -> Self {
-        Self(
-            base::Scalar::random(rng).to_u64(),
-            base::Scalar::random(rng).to_u64(),
-        )
+        Self(base::Scalar::random(rng).0, base::Scalar::random(rng).0)
     }
 
     fn random_default() -> Self {
         Self(
-            base::Scalar::random_default().to_u64(),
-            base::Scalar::random_default().to_u64(),
+            base::Scalar::random_default().0,
+            base::Scalar::random_default().0,
         )
     }
 
@@ -499,16 +496,17 @@ impl Field for Scalar {
         let a = base::Scalar::from_const(self.0);
         let b = base::Scalar::from_const(self.1);
         let norm = b * b - a * a * base::Scalar::from_const(QUADRATIC_NON_RESIDUE);
-        norm.invert()
-            .map(|inverse_norm| Self((-a * inverse_norm).to_u64(), (b * inverse_norm).to_u64()))
+        let conjugate = Self(gl_sub(0, self.0), self.1);
+        norm.invert().map(|inverse_norm| conjugate * inverse_norm)
     }
 
     fn invert_vartime(&self) -> Option<Self> {
         let a = base::Scalar::from_const(self.0);
         let b = base::Scalar::from_const(self.1);
         let norm = b * b - a * a * base::Scalar::from_const(QUADRATIC_NON_RESIDUE);
+        let conjugate = Self(gl_sub(0, self.0), self.1);
         norm.invert_vartime()
-            .map(|inverse_norm| Self((-a * inverse_norm).to_u64(), (b * inverse_norm).to_u64()))
+            .map(|inverse_norm| conjugate * inverse_norm)
     }
 
     fn pow(mut self, exp: Self) -> Self {

@@ -23,7 +23,7 @@ static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuv
 ///
 /// Goldilocks is a very fast 64-bit prime field with order `0xffffffff00000001`.
 #[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Scalar(u64);
+pub struct Scalar(pub(crate) u64);
 
 impl Scalar {
     /// Constructs a Goldilocks scalar from its raw 64-bit value.
