@@ -88,7 +88,7 @@ impl Add<gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn add(self, rhs: gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) + rhs
+        gl2::Scalar(rhs.0, gl_add(self.0, rhs.1))
     }
 }
 
@@ -96,7 +96,7 @@ impl<'a> Add<&'a gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn add(self, rhs: &'a gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) + rhs
+        gl2::Scalar(rhs.0, gl_add(self.0, rhs.1))
     }
 }
 
@@ -144,7 +144,7 @@ impl Sub<gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn sub(self, rhs: gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) - rhs
+        gl2::Scalar(gl_sub(0, rhs.0), gl_sub(self.0, rhs.1))
     }
 }
 
@@ -152,7 +152,7 @@ impl<'a> Sub<&'a gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn sub(self, rhs: &'a gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) - rhs
+        gl2::Scalar(gl_sub(0, rhs.0), gl_sub(self.0, rhs.1))
     }
 }
 
@@ -188,7 +188,7 @@ impl Mul<gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn mul(self, rhs: gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) * rhs
+        gl2::Scalar(gl_mul(self.0, rhs.0), gl_mul(self.0, rhs.1))
     }
 }
 
@@ -196,7 +196,7 @@ impl<'a> Mul<&'a gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn mul(self, rhs: &'a gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) * rhs
+        gl2::Scalar(gl_mul(self.0, rhs.0), gl_mul(self.0, rhs.1))
     }
 }
 
@@ -232,7 +232,8 @@ impl Div<gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn div(self, rhs: gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) / rhs
+        let inverse = rhs.invert_unwrap();
+        gl2::Scalar(gl_mul(self.0, inverse.0), gl_mul(self.0, inverse.1))
     }
 }
 
@@ -240,7 +241,8 @@ impl<'a> Div<&'a gl2::Scalar> for Scalar {
     type Output = gl2::Scalar;
 
     fn div(self, rhs: &'a gl2::Scalar) -> Self::Output {
-        gl2::Scalar::from(self) / rhs
+        let inverse = rhs.invert_unwrap();
+        gl2::Scalar(gl_mul(self.0, inverse.0), gl_mul(self.0, inverse.1))
     }
 }
 

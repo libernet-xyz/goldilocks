@@ -100,7 +100,7 @@ impl Add<base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn add(self, rhs: base::Scalar) -> Self::Output {
-        self + Self::from(rhs)
+        Self(self.0, gl_add(self.1, rhs.0))
     }
 }
 
@@ -108,19 +108,19 @@ impl<'a> Add<&'a base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn add(self, rhs: &'a base::Scalar) -> Self::Output {
-        self + Self::from(*rhs)
+        Self(self.0, gl_add(self.1, rhs.0))
     }
 }
 
 impl AddAssign<base::Scalar> for Scalar {
     fn add_assign(&mut self, rhs: base::Scalar) {
-        *self += Self::from(rhs);
+        self.1 = gl_add(self.1, rhs.0);
     }
 }
 
 impl<'a> AddAssign<&'a base::Scalar> for Scalar {
     fn add_assign(&mut self, rhs: &'a base::Scalar) {
-        *self += Self::from(*rhs);
+        self.1 = gl_add(self.1, rhs.0);
     }
 }
 
@@ -166,7 +166,7 @@ impl Sub<base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn sub(self, rhs: base::Scalar) -> Self::Output {
-        self - Self::from(rhs)
+        Self(self.0, gl_sub(self.1, rhs.0))
     }
 }
 
@@ -174,19 +174,19 @@ impl<'a> Sub<&'a base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn sub(self, rhs: &'a base::Scalar) -> Self::Output {
-        self - Self::from(*rhs)
+        Self(self.0, gl_sub(self.1, rhs.0))
     }
 }
 
 impl SubAssign<base::Scalar> for Scalar {
     fn sub_assign(&mut self, rhs: base::Scalar) {
-        *self -= Self::from(rhs);
+        self.1 = gl_sub(self.1, rhs.0);
     }
 }
 
 impl<'a> SubAssign<&'a base::Scalar> for Scalar {
     fn sub_assign(&mut self, rhs: &'a base::Scalar) {
-        *self -= Self::from(*rhs);
+        self.1 = gl_sub(self.1, rhs.0);
     }
 }
 
@@ -246,7 +246,7 @@ impl Mul<base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn mul(self, rhs: base::Scalar) -> Self::Output {
-        self * Self::from(rhs)
+        Self(gl_mul(self.0, rhs.0), gl_mul(self.1, rhs.0))
     }
 }
 
@@ -254,19 +254,21 @@ impl<'a> Mul<&'a base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn mul(self, rhs: &'a base::Scalar) -> Self::Output {
-        self * Self::from(*rhs)
+        Self(gl_mul(self.0, rhs.0), gl_mul(self.1, rhs.0))
     }
 }
 
 impl MulAssign<base::Scalar> for Scalar {
     fn mul_assign(&mut self, rhs: base::Scalar) {
-        *self *= Self::from(rhs);
+        self.0 = gl_mul(self.0, rhs.0);
+        self.1 = gl_mul(self.1, rhs.0);
     }
 }
 
 impl<'a> MulAssign<&'a base::Scalar> for Scalar {
     fn mul_assign(&mut self, rhs: &'a base::Scalar) {
-        *self *= Self::from(*rhs);
+        self.0 = gl_mul(self.0, rhs.0);
+        self.1 = gl_mul(self.1, rhs.0);
     }
 }
 
@@ -302,7 +304,8 @@ impl Div<base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn div(self, rhs: base::Scalar) -> Self::Output {
-        self / Self::from(rhs)
+        let inverse = rhs.invert_unwrap();
+        Self(gl_mul(self.0, inverse.0), gl_mul(self.1, inverse.0))
     }
 }
 
@@ -310,19 +313,24 @@ impl<'a> Div<&'a base::Scalar> for Scalar {
     type Output = Scalar;
 
     fn div(self, rhs: &'a base::Scalar) -> Self::Output {
-        self / Self::from(*rhs)
+        let inverse = rhs.invert_unwrap();
+        Self(gl_mul(self.0, inverse.0), gl_mul(self.1, inverse.0))
     }
 }
 
 impl DivAssign<base::Scalar> for Scalar {
     fn div_assign(&mut self, rhs: base::Scalar) {
-        *self /= Self::from(rhs);
+        let inverse = rhs.invert_unwrap();
+        self.0 = gl_mul(self.0, inverse.0);
+        self.1 = gl_mul(self.1, inverse.0);
     }
 }
 
 impl<'a> DivAssign<&'a base::Scalar> for Scalar {
     fn div_assign(&mut self, rhs: &'a base::Scalar) {
-        *self /= Self::from(*rhs);
+        let inverse = rhs.invert_unwrap();
+        self.0 = gl_mul(self.0, inverse.0);
+        self.1 = gl_mul(self.1, inverse.0);
     }
 }
 
