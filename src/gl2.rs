@@ -1,4 +1,5 @@
 use crate::base;
+use crate::gl4;
 use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
 use anyhow::anyhow;
 use primitive_types::{H256, U256, U512};
@@ -121,6 +122,22 @@ impl AddAssign<base::Scalar> for Scalar {
 impl<'a> AddAssign<&'a base::Scalar> for Scalar {
     fn add_assign(&mut self, rhs: &'a base::Scalar) {
         self.1 = gl_add(self.1, rhs.0);
+    }
+}
+
+impl Add<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn add(self, rhs: gl4::Scalar) -> Self::Output {
+        gl4::Scalar(rhs.0, rhs.1, gl_add(self.0, rhs.2), gl_add(self.1, rhs.3))
+    }
+}
+
+impl<'a> Add<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn add(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        gl4::Scalar(rhs.0, rhs.1, gl_add(self.0, rhs.2), gl_add(self.1, rhs.3))
     }
 }
 
@@ -846,6 +863,15 @@ mod tests {
         let mut lhs = Scalar(1, 2);
         lhs += &rhs;
         assert_eq!(lhs, Scalar(1, 7));
+    }
+
+    #[test]
+    fn test_add_gl4() {
+        let lhs = Scalar(1, 2);
+        let rhs = gl4::Scalar(3, 4, 5, 6);
+        let expected = gl4::Scalar(3, 4, 6, 8);
+        assert_eq!(lhs + rhs, expected);
+        assert_eq!(lhs + &rhs, expected);
     }
 
     #[test]
