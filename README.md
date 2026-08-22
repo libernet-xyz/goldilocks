@@ -9,3 +9,6 @@
 Starkom's implementation of the Goldilocks field.
 
 The order of the field is the Goldilocks prime $p = 2^{64} - 2^{32} + 1$, or `0xFFFFFFFF00000001`.
+
+This crate provides not only the base Goldilocks field but also the extension fields Goldilocks^2
+and Goldilocks^4.
