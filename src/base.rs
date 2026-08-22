@@ -436,6 +436,8 @@ impl TryFrom<u64> for Scalar {
 }
 
 impl Field for Scalar {
+    const MODULUS: &'static str = "0xffffffff00000001";
+
     const LEN: usize = 8;
 
     const ZERO: Self = Self(0);
@@ -625,8 +627,6 @@ impl Field64 for Scalar {
 }
 
 impl PrimeField for Scalar {
-    const MODULUS: &'static str = "0xffffffff00000001";
-
     const S: usize = 32;
 
     const MULTIPLICATIVE_GENERATOR: Self = Self(7);

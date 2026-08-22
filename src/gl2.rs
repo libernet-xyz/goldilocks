@@ -511,6 +511,8 @@ impl TryFrom<u128> for Scalar {
 }
 
 impl Field for Scalar {
+    const MODULUS: &'static str = "0xfffffffe00000002fffffffe00000001";
+
     const LEN: usize = 16;
 
     const ZERO: Self = Self(0, 0);
@@ -746,6 +748,12 @@ mod tests {
         assert_eq!(from_const(1), Scalar::ONE);
         assert_eq!(from_const(MODULUS), Scalar(1, 0));
         assert_eq!(from_const(MODULUS + 1), Scalar(1, 1));
+    }
+
+    #[test]
+    fn test_modulus() {
+        assert_eq!(Scalar::MODULUS, "0xfffffffe00000002fffffffe00000001");
+        assert_eq!(Scalar::MAX, Scalar(MODULUS - 1, MODULUS - 1));
     }
 
     #[test]
