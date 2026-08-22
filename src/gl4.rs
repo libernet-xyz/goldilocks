@@ -358,6 +358,92 @@ impl<'a> MulAssign<&'a Self> for Scalar {
     }
 }
 
+impl Mul<base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: base::Scalar) -> Self::Output {
+        Self(
+            gl_mul(self.0, rhs.0),
+            gl_mul(self.1, rhs.0),
+            gl_mul(self.2, rhs.0),
+            gl_mul(self.3, rhs.0),
+        )
+    }
+}
+
+impl<'a> Mul<&'a base::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: &'a base::Scalar) -> Self::Output {
+        Self(
+            gl_mul(self.0, rhs.0),
+            gl_mul(self.1, rhs.0),
+            gl_mul(self.2, rhs.0),
+            gl_mul(self.3, rhs.0),
+        )
+    }
+}
+
+impl MulAssign<base::Scalar> for Scalar {
+    fn mul_assign(&mut self, rhs: base::Scalar) {
+        self.0 = gl_mul(self.0, rhs.0);
+        self.1 = gl_mul(self.1, rhs.0);
+        self.2 = gl_mul(self.2, rhs.0);
+        self.3 = gl_mul(self.3, rhs.0);
+    }
+}
+
+impl<'a> MulAssign<&'a base::Scalar> for Scalar {
+    fn mul_assign(&mut self, rhs: &'a base::Scalar) {
+        self.0 = gl_mul(self.0, rhs.0);
+        self.1 = gl_mul(self.1, rhs.0);
+        self.2 = gl_mul(self.2, rhs.0);
+        self.3 = gl_mul(self.3, rhs.0);
+    }
+}
+
+impl Mul<gl2::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: gl2::Scalar) -> Self::Output {
+        let (y0, y1) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        let (c0, c1) = gl_mul2(self.2, self.3, rhs.0, rhs.1);
+        Self(y0, y1, c0, c1)
+    }
+}
+
+impl<'a> Mul<&'a gl2::Scalar> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        let (y0, y1) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        let (c0, c1) = gl_mul2(self.2, self.3, rhs.0, rhs.1);
+        Self(y0, y1, c0, c1)
+    }
+}
+
+impl MulAssign<gl2::Scalar> for Scalar {
+    fn mul_assign(&mut self, rhs: gl2::Scalar) {
+        let (y0, y1) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        let (c0, c1) = gl_mul2(self.2, self.3, rhs.0, rhs.1);
+        self.0 = y0;
+        self.1 = y1;
+        self.2 = c0;
+        self.3 = c1;
+    }
+}
+
+impl<'a> MulAssign<&'a gl2::Scalar> for Scalar {
+    fn mul_assign(&mut self, rhs: &'a gl2::Scalar) {
+        let (y0, y1) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        let (c0, c1) = gl_mul2(self.2, self.3, rhs.0, rhs.1);
+        self.0 = y0;
+        self.1 = y1;
+        self.2 = c0;
+        self.3 = c1;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,5 +725,47 @@ mod tests {
         let mut lhs = Scalar(1, 2, 3, 4);
         lhs *= &Scalar(5, 6, 7, 8);
         assert_eq!(lhs, Scalar(60, 194, 99, 291));
+    }
+
+    #[test]
+    fn test_mul_base_scalar() {
+        let lhs = Scalar(1, 2, 3, 4);
+        let rhs = base::Scalar(5);
+        assert_eq!(lhs * rhs, Scalar(5, 10, 15, 20));
+        assert_eq!(lhs * &rhs, Scalar(5, 10, 15, 20));
+    }
+
+    #[test]
+    fn test_mul_assign_base_scalar() {
+        let rhs = base::Scalar(5);
+
+        let mut lhs = Scalar(1, 2, 3, 4);
+        lhs *= rhs;
+        assert_eq!(lhs, Scalar(5, 10, 15, 20));
+
+        let mut lhs = Scalar(1, 2, 3, 4);
+        lhs *= &rhs;
+        assert_eq!(lhs, Scalar(5, 10, 15, 20));
+    }
+
+    #[test]
+    fn test_mul_gl2() {
+        let lhs = Scalar(1, 2, 3, 4);
+        let rhs = gl2::Scalar(5, 6);
+        assert_eq!(lhs * rhs, Scalar(16, 47, 38, 129));
+        assert_eq!(lhs * &rhs, Scalar(16, 47, 38, 129));
+    }
+
+    #[test]
+    fn test_mul_assign_gl2() {
+        let rhs = gl2::Scalar(5, 6);
+
+        let mut lhs = Scalar(1, 2, 3, 4);
+        lhs *= rhs;
+        assert_eq!(lhs, Scalar(16, 47, 38, 129));
+
+        let mut lhs = Scalar(1, 2, 3, 4);
+        lhs *= &rhs;
+        assert_eq!(lhs, Scalar(16, 47, 38, 129));
     }
 }

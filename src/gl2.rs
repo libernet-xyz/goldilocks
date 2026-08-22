@@ -293,6 +293,26 @@ impl<'a> MulAssign<&'a base::Scalar> for Scalar {
     }
 }
 
+impl Mul<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn mul(self, rhs: gl4::Scalar) -> Self::Output {
+        let (y0, y1) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        let (c0, c1) = gl_mul2(self.0, self.1, rhs.2, rhs.3);
+        gl4::Scalar(y0, y1, c0, c1)
+    }
+}
+
+impl<'a> Mul<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn mul(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        let (y0, y1) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        let (c0, c1) = gl_mul2(self.0, self.1, rhs.2, rhs.3);
+        gl4::Scalar(y0, y1, c0, c1)
+    }
+}
+
 impl Div<Self> for Scalar {
     type Output = Scalar;
 
@@ -999,6 +1019,15 @@ mod tests {
         let mut lhs = Scalar(2, 3);
         lhs *= &rhs;
         assert_eq!(lhs, Scalar(10, 15));
+    }
+
+    #[test]
+    fn test_mul_gl4() {
+        let lhs = Scalar(5, 6);
+        let rhs = gl4::Scalar(1, 2, 3, 4);
+        let expected = gl4::Scalar(16, 47, 38, 129);
+        assert_eq!(lhs * rhs, expected);
+        assert_eq!(lhs * &rhs, expected);
     }
 
     #[test]
