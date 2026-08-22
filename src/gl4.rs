@@ -1,7 +1,7 @@
 use crate::base;
 use crate::gl2;
-use crate::helpers::{MODULUS, gl_add, gl_sub};
-use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
+use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl_sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
 };
@@ -40,6 +40,47 @@ impl Scalar {
     #[inline]
     pub const fn from_const(value: u64) -> Self {
         Self(0, 0, value / MODULUS, value % MODULUS)
+    }
+
+    /// Multiplies two GL4 scalars.
+    ///
+    /// `self` represents `A*Y + B` and `rhs` represents `C*Y + D`, where `A = (self.0, self.1)`,
+    /// `B = (self.2, self.3)`, `C = (rhs.0, rhs.1)` and `D = (rhs.2, rhs.3)` are GL2 elements,
+    /// using the `a*X + b` convention of [`gl2::Scalar`].
+    ///
+    /// `(A*Y+B) * (C*Y+D) = A*C*Y^2 + (A*D+B*C)*Y + B*D`, and since `Y^2 = X` (the GL2 generator),
+    /// this reduces to `(A*D+B*C)*Y + (B*D + A*C*X)`. Multiplying a GL2 element `(p, q)` (i.e.
+    /// `p*X+q`) by `X` gives `p*X^2 + q*X = q*X + QUADRATIC_NON_RESIDUE*p`, that is
+    /// `(q, QUADRATIC_NON_RESIDUE*p)`, which is why `A*C*X` below is just a swap-and-scale of `A*C`
+    /// rather than a full GL2 multiplication.
+    fn mul_impl(self, rhs: Self) -> Self {
+        let (a0, a1) = (self.0, self.1);
+        let (b0, b1) = (self.2, self.3);
+        let (c0, c1) = (rhs.0, rhs.1);
+        let (d0, d1) = (rhs.2, rhs.3);
+
+        // A*D
+        let (ad0, ad1) = gl_mul2(a0, a1, d0, d1);
+
+        // B*C
+        let (bc0, bc1) = gl_mul2(b0, b1, c0, c1);
+
+        // B*D
+        let (bd0, bd1) = gl_mul2(b0, b1, d0, d1);
+
+        // A*C
+        let (ac0, ac1) = gl_mul2(a0, a1, c0, c1);
+
+        // A*C*X
+        let acx0 = ac1;
+        let acx1 = gl_mul(QUADRATIC_NON_RESIDUE, ac0);
+
+        Self(
+            gl_add(ad0, bc0),
+            gl_add(ad1, bc1),
+            gl_add(bd0, acx0),
+            gl_add(bd1, acx1),
+        )
     }
 }
 
@@ -282,6 +323,34 @@ impl<'a> SubAssign<&'a gl2::Scalar> for Scalar {
     }
 }
 
+impl Mul<Self> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        self.mul_impl(rhs)
+    }
+}
+
+impl<'a> Mul<&'a Self> for Scalar {
+    type Output = Scalar;
+
+    fn mul(self, rhs: &'a Self) -> Self::Output {
+        self.mul_impl(*rhs)
+    }
+}
+
+impl MulAssign<Self> for Scalar {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = self.mul_impl(rhs);
+    }
+}
+
+impl<'a> MulAssign<&'a Self> for Scalar {
+    fn mul_assign(&mut self, rhs: &'a Self) {
+        *self = self.mul_impl(*rhs);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -516,5 +585,52 @@ mod tests {
         let mut lhs = Scalar(1, 2, 8, 10);
         lhs -= &rhs;
         assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_extension_root() {
+        let y = Scalar(0, 1, 0, 0);
+        let y_squared = y * y;
+        // Y^2 = X, i.e. the GL2 generator embedded with a zero Y-coefficient.
+        assert_eq!(y_squared, Scalar(0, 0, 1, 0));
+        assert_eq!(y * &y, y_squared);
+        // Y^4 = QUADRATIC_NON_RESIDUE.
+        assert_eq!(y_squared * y_squared, from_const(QUADRATIC_NON_RESIDUE));
+    }
+
+    #[test]
+    fn test_mul_by_zero() {
+        assert_eq!(Scalar(0, 0, 0, 0) * Scalar(1, 2, 3, 4), Scalar(0, 0, 0, 0));
+        assert_eq!(Scalar(1, 2, 3, 4) * Scalar(0, 0, 0, 0), Scalar(0, 0, 0, 0));
+    }
+
+    #[test]
+    fn test_mul_by_one() {
+        assert_eq!(Scalar(0, 0, 0, 1) * Scalar(2, 3, 4, 5), Scalar(2, 3, 4, 5));
+        assert_eq!(Scalar(2, 3, 4, 5) * Scalar(0, 0, 0, 1), Scalar(2, 3, 4, 5));
+    }
+
+    #[test]
+    fn test_mul() {
+        let lhs = Scalar(1, 2, 3, 4);
+        let rhs = Scalar(5, 6, 7, 8);
+        let expected = Scalar(60, 194, 99, 291);
+        assert_eq!(lhs * rhs, expected);
+        assert_eq!(lhs * &rhs, expected);
+        assert_eq!(rhs * lhs, expected);
+    }
+
+    #[test]
+    fn test_mul_assign() {
+        let mut lhs = Scalar(1, 2, 3, 4);
+        lhs *= Scalar(5, 6, 7, 8);
+        assert_eq!(lhs, Scalar(60, 194, 99, 291));
+    }
+
+    #[test]
+    fn test_mul_assign_ref() {
+        let mut lhs = Scalar(1, 2, 3, 4);
+        lhs *= &Scalar(5, 6, 7, 8);
+        assert_eq!(lhs, Scalar(60, 194, 99, 291));
     }
 }

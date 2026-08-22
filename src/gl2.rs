@@ -1,6 +1,6 @@
 use crate::base;
 use crate::gl4;
-use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
+use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl_sub};
 use anyhow::anyhow;
 use primitive_types::{H256, U256, U512};
 use rand_core::{CryptoRng, TryCryptoRng};
@@ -20,10 +20,6 @@ static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUV
 /// Lower-case characters used in textual representations.
 static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
-/// The quadratic non-residue used to build the extension: `X^2 = QUADRATIC_NON_RESIDUE` in the base
-/// field.
-const QUADRATIC_NON_RESIDUE: u64 = 7;
-
 /// Goldilocks^2 extension field.
 ///
 /// This is the degree-2 extension `GF(p)[X] / (X^2 - QUADRATIC_NON_RESIDUE)` of the Goldilocks
@@ -40,7 +36,7 @@ const QUADRATIC_NON_RESIDUE: u64 = 7;
 pub struct Scalar(pub(crate) u64, pub(crate) u64);
 
 impl Scalar {
-    /// Constructs a Goldilocks^2 scalar from its raw 64-bit value.
+    /// Constructs a Goldilocks^2 scalar from a raw 64-bit value.
     #[inline]
     pub const fn from_const(value: u64) -> Self {
         Self(value / MODULUS, value % MODULUS)
@@ -237,13 +233,8 @@ impl Mul<Self> for Scalar {
     type Output = Scalar;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        Self(
-            gl_add(gl_mul(self.0, rhs.1), gl_mul(self.1, rhs.0)),
-            gl_add(
-                gl_mul(self.1, rhs.1),
-                gl_mul(QUADRATIC_NON_RESIDUE, gl_mul(self.0, rhs.0)),
-            ),
-        )
+        let (hi, lo) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        Self(hi, lo)
     }
 }
 
@@ -251,23 +242,14 @@ impl<'a> Mul<&'a Self> for Scalar {
     type Output = Scalar;
 
     fn mul(self, rhs: &'a Self) -> Self::Output {
-        Self(
-            gl_add(gl_mul(self.0, rhs.1), gl_mul(self.1, rhs.0)),
-            gl_add(
-                gl_mul(self.1, rhs.1),
-                gl_mul(QUADRATIC_NON_RESIDUE, gl_mul(self.0, rhs.0)),
-            ),
-        )
+        let (hi, lo) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
+        Self(hi, lo)
     }
 }
 
 impl MulAssign<Self> for Scalar {
     fn mul_assign(&mut self, rhs: Self) {
-        let hi = gl_add(gl_mul(self.0, rhs.1), gl_mul(self.1, rhs.0));
-        let lo = gl_add(
-            gl_mul(self.1, rhs.1),
-            gl_mul(QUADRATIC_NON_RESIDUE, gl_mul(self.0, rhs.0)),
-        );
+        let (hi, lo) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
         self.0 = hi;
         self.1 = lo;
     }
@@ -275,11 +257,7 @@ impl MulAssign<Self> for Scalar {
 
 impl<'a> MulAssign<&'a Self> for Scalar {
     fn mul_assign(&mut self, rhs: &'a Self) {
-        let hi = gl_add(gl_mul(self.0, rhs.1), gl_mul(self.1, rhs.0));
-        let lo = gl_add(
-            gl_mul(self.1, rhs.1),
-            gl_mul(QUADRATIC_NON_RESIDUE, gl_mul(self.0, rhs.0)),
-        );
+        let (hi, lo) = gl_mul2(self.0, self.1, rhs.0, rhs.1);
         self.0 = hi;
         self.1 = lo;
     }
