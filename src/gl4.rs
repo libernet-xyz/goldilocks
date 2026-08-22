@@ -896,31 +896,39 @@ impl Field for Scalar {
 
 impl Field256 for Scalar {
     fn to_le_bytes(&self) -> [u8; 32] {
-        todo!()
+        self.to_u256().to_little_endian()
     }
 
     fn to_be_bytes(&self) -> [u8; 32] {
-        todo!()
+        self.to_u256().to_big_endian()
     }
 
     fn from_u512_mod_n(u512: U512) -> Self {
-        todo!()
+        let modulus = U512::from(MODULUS);
+        let modulus_pow4 = modulus * modulus * modulus * modulus;
+        let value = U256::try_from(u512 % modulus_pow4).unwrap();
+        Self::try_from(value).unwrap()
     }
 
     fn from_h512(h512: H512) -> Self {
-        todo!()
+        Self::from_u512_mod_n(U512::from_little_endian(h512.as_bytes()))
     }
 
     fn try_to_u32(&self) -> CtOption<u32> {
-        todo!()
+        let hi_is_zero = Choice::from(((self.0 == 0) && (self.1 == 0) && (self.2 == 0)) as u8);
+        let lo_fits = Choice::from((self.3 <= u32::MAX as u64) as u8);
+        CtOption::new(self.3 as u32, hi_is_zero & lo_fits)
     }
 
     fn try_to_u64(&self) -> CtOption<u64> {
-        todo!()
+        let hi_is_zero = Choice::from(((self.0 == 0) && (self.1 == 0) && (self.2 == 0)) as u8);
+        CtOption::new(self.3, hi_is_zero)
     }
 
     fn try_to_u128(&self) -> CtOption<u128> {
-        todo!()
+        let fits = Choice::from(((self.0 == 0) && (self.1 == 0)) as u8);
+        let value = (self.2 as u128) * (MODULUS as u128) + (self.3 as u128);
+        CtOption::new(value, fits)
     }
 
     fn to_u256(&self) -> U256 {
@@ -1712,5 +1720,106 @@ mod tests {
         assert_eq!(from_const(u16::MAX as u64).try_to_u16().unwrap(), u16::MAX);
         assert!(from_const(u16::MAX as u64 + 1).try_to_u16().is_none());
         assert!(Scalar(1, 0, 0, 0).try_to_u16().is_none());
+    }
+
+    #[test]
+    fn test_field256_to_le_bytes() {
+        let value = Scalar(1, 2, 3, 4);
+        assert_eq!(value.to_le_bytes(), value.to_u256().to_little_endian());
+    }
+
+    #[test]
+    fn test_field256_to_be_bytes() {
+        let value = Scalar(1, 2, 3, 4);
+        assert_eq!(value.to_be_bytes(), value.to_u256().to_big_endian());
+    }
+
+    #[test]
+    fn test_field256_le_be_bytes_roundtrip() {
+        let value = Scalar(1, 2, 3, 4);
+        assert_eq!(
+            Scalar::try_from_le_bytes(&value.to_le_bytes()).unwrap(),
+            value
+        );
+        assert_eq!(
+            Scalar::try_from_be_bytes(&value.to_be_bytes()).unwrap(),
+            value
+        );
+    }
+
+    #[test]
+    fn test_from_u512_mod_n() {
+        assert_eq!(Scalar::from_u512_mod_n(U512::from(0)), from_const(0));
+        assert_eq!(Scalar::from_u512_mod_n(U512::from(42)), from_const(42));
+        assert_eq!(
+            Scalar::from_u512_mod_n(U512::from(MODULUS)),
+            Scalar(0, 0, 1, 0)
+        );
+        let modulus = U512::from(MODULUS);
+        let modulus_pow4 = modulus * modulus * modulus * modulus;
+        assert_eq!(Scalar::from_u512_mod_n(modulus_pow4), Scalar::ZERO);
+        assert_eq!(
+            Scalar::from_u512_mod_n(modulus_pow4 + U512::from(1)),
+            Scalar::ONE
+        );
+    }
+
+    #[test]
+    fn test_from_h512() {
+        let mut bytes = [0u8; 64];
+        bytes[0..8].copy_from_slice(&42u64.to_le_bytes());
+        assert_eq!(Scalar::from_h512(H512::from_slice(&bytes)), from_const(42));
+    }
+
+    #[test]
+    fn test_field256_try_to_u32() {
+        assert_eq!(from_const(0).try_to_u32().unwrap(), 0);
+        assert_eq!(from_const(u32::MAX as u64).try_to_u32().unwrap(), u32::MAX);
+        assert!(bool::from(
+            from_const(u32::MAX as u64 + 1).try_to_u32().is_none()
+        ));
+        assert!(bool::from(Scalar(1, 0, 0, 0).try_to_u32().is_none()));
+    }
+
+    #[test]
+    fn test_field256_try_to_u64() {
+        assert_eq!(from_const(0).try_to_u64().unwrap(), 0);
+        assert_eq!(from_const(42).try_to_u64().unwrap(), 42);
+        assert_eq!(
+            Scalar(0, 0, 0, MODULUS - 1).try_to_u64().unwrap(),
+            MODULUS - 1
+        );
+        assert!(bool::from(Scalar(1, 0, 0, 0).try_to_u64().is_none()));
+    }
+
+    #[test]
+    fn test_field256_try_to_u128() {
+        assert_eq!(from_const(0).try_to_u128().unwrap(), 0);
+        assert_eq!(from_const(42).try_to_u128().unwrap(), 42);
+        assert_eq!(
+            Scalar(0, 0, MODULUS - 1, MODULUS - 1)
+                .try_to_u128()
+                .unwrap(),
+            (MODULUS as u128) * (MODULUS as u128) - 1
+        );
+        assert!(bool::from(Scalar(0, 1, 0, 0).try_to_u128().is_none()));
+    }
+
+    #[test]
+    fn test_field256_to_u256() {
+        assert_eq!(from_const(0).to_u256(), U256::from(0));
+        assert_eq!(from_const(42).to_u256(), U256::from(42));
+        let modulus = U256::from(MODULUS);
+        assert_eq!(
+            Scalar::MAX.to_u256(),
+            modulus * modulus * modulus * modulus - U256::from(1)
+        );
+    }
+
+    #[test]
+    fn test_field256_to_u512() {
+        assert_eq!(from_const(0).to_u512(), U512::from(0));
+        assert_eq!(from_const(42).to_u512(), U512::from(42));
+        assert_eq!(Scalar::MAX.to_u512(), U512::from(Scalar::MAX.to_u256()));
     }
 }
