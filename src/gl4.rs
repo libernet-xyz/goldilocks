@@ -1,6 +1,8 @@
 use crate::base;
 use crate::gl2;
 use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl_sub};
+use anyhow::anyhow;
+use primitive_types::U256;
 use starkom_ff::Field;
 use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
 use std::iter::{Product, Sum};
@@ -642,15 +644,12 @@ impl From<u64> for Scalar {
 impl From<u128> for Scalar {
     fn from(value: u128) -> Self {
         const MODULUS_U128: u128 = MODULUS as u128;
-        let value0 = value;
-        let value1 = value0 / MODULUS_U128;
-        let value2 = value1 / MODULUS_U128;
-        Self(
-            0,
-            (value2 % MODULUS_U128) as u64,
-            (value1 % MODULUS_U128) as u64,
-            (value0 % MODULUS_U128) as u64,
-        )
+        let d0 = value % MODULUS_U128;
+        let value = value / MODULUS_U128;
+        let d1 = value % MODULUS_U128;
+        let value = value / MODULUS_U128;
+        let d2 = value % MODULUS_U128;
+        Self(0, d2 as u64, d1 as u64, d0 as u64)
     }
 }
 
@@ -670,7 +669,29 @@ impl TryFrom<usize> for Scalar {
     type Error = anyhow::Error;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
-        todo!()
+        let value = value as u64;
+        Ok(Self(0, 0, value / MODULUS, value % MODULUS))
+    }
+}
+
+impl TryFrom<U256> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: U256) -> Result<Self, Self::Error> {
+        let modulus = U256::from(MODULUS);
+        let mut remaining = value;
+        let d0 = remaining % modulus;
+        remaining /= modulus;
+        let d1 = remaining % modulus;
+        remaining /= modulus;
+        let d2 = remaining % modulus;
+        remaining /= modulus;
+        let d3 = remaining % modulus;
+        remaining /= modulus;
+        if remaining != U256::from(0) {
+            return Err(anyhow!("{:#x} exceeds the Goldilocks^4 range", value));
+        }
+        Ok(Self(d3.as_u64(), d2.as_u64(), d1.as_u64(), d0.as_u64()))
     }
 }
 
@@ -742,11 +763,57 @@ impl Field for Scalar {
     }
 
     fn from_str_radix(s: &str, radix: usize) -> Result<Self, std::fmt::Error> {
-        todo!()
+        assert!(radix >= 2 && radix <= 36);
+        if s.is_empty() {
+            return Err(std::fmt::Error);
+        }
+        let mut value = U256::from(0);
+        let radix_u256 = U256::from(radix);
+        for byte in s.bytes() {
+            let digit = CHARACTERS_UPPER_CASE[..radix]
+                .iter()
+                .position(|&c| c == byte)
+                .or_else(|| {
+                    CHARACTERS_LOWER_CASE[..radix]
+                        .iter()
+                        .position(|&c| c == byte)
+                })
+                .ok_or(std::fmt::Error)?;
+            value = value
+                .checked_mul(radix_u256)
+                .ok_or(std::fmt::Error)?
+                .checked_add(U256::from(digit))
+                .ok_or(std::fmt::Error)?;
+        }
+        Self::try_from(value).map_err(|_| std::fmt::Error)
     }
 
     fn to_str_radix(&self, radix: usize, pad_to: usize, upper_case: bool) -> String {
-        todo!()
+        assert!(radix >= 2 && radix <= 36);
+        let characters = if upper_case {
+            CHARACTERS_UPPER_CASE
+        } else {
+            CHARACTERS_LOWER_CASE
+        };
+        let modulus = U256::from(MODULUS);
+        let mut value = U256::from(self.0) * modulus * modulus * modulus
+            + U256::from(self.1) * modulus * modulus
+            + U256::from(self.2) * modulus
+            + U256::from(self.3);
+        let mut s = String::default();
+        let radix = U256::from(radix);
+        while value != U256::from(0) {
+            let digit = value % radix;
+            s.push(characters[digit.as_u64() as usize] as char);
+            value /= radix;
+        }
+        if s.is_empty() {
+            s.push('0');
+        }
+        while s.len() < pad_to {
+            s.push('0');
+        }
+        s.chars().rev().collect()
     }
 
     fn try_to_u8(&self) -> Option<u8> {
@@ -766,6 +833,11 @@ mod tests {
     #[inline]
     const fn from_const(value: u64) -> Scalar {
         Scalar::from_const(value)
+    }
+
+    #[inline]
+    fn parse_scalar(s: &'static str) -> Scalar {
+        s.parse().unwrap()
     }
 
     #[test]
@@ -1210,5 +1282,149 @@ mod tests {
         let values = vec![Scalar(0, 0, 0, 2), Scalar(0, 0, 0, 3), Scalar(0, 0, 0, 4)];
         assert_eq!(values.iter().product::<Scalar>(), Scalar(0, 0, 0, 24));
         assert_eq!(values.into_iter().product::<Scalar>(), Scalar(0, 0, 0, 24));
+    }
+
+    #[test]
+    fn test_fmt_display() {
+        assert_eq!(
+            format!("{}", from_const(0)),
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        );
+        assert_eq!(
+            format!("{}", from_const(0xdeadbeef)),
+            "0x00000000000000000000000000000000000000000000000000000000deadbeef"
+        );
+        assert_eq!(
+            format!("{}", Scalar(1, 2, 3, 4)),
+            "0x0000000000000000fffffffd00000007fffffff50000000efffffff60000000a"
+        );
+    }
+
+    #[test]
+    fn test_fmt_debug() {
+        assert_eq!(
+            format!("{:?}", from_const(0)),
+            "Scalar(0x0000000000000000000000000000000000000000000000000000000000000000)"
+        );
+    }
+
+    #[test]
+    fn test_fmt_lower_hex() {
+        assert_eq!(format!("{:x}", from_const(0xdeadbeef)), "deadbeef");
+        assert_eq!(format!("{:#x}", from_const(0xdeadbeef)), "0xdeadbeef");
+        assert_eq!(
+            format!("{:x}", Scalar(1, 2, 3, 4)),
+            "fffffffd00000007fffffff50000000efffffff60000000a"
+        );
+    }
+
+    #[test]
+    fn test_fmt_upper_hex() {
+        assert_eq!(format!("{:X}", from_const(0xdeadbeef)), "DEADBEEF");
+    }
+
+    #[test]
+    fn test_fmt_binary() {
+        assert_eq!(format!("{:b}", from_const(0b1010)), "1010");
+    }
+
+    #[test]
+    fn test_fmt_octal() {
+        assert_eq!(format!("{:o}", from_const(0o755)), "755");
+    }
+
+    #[test]
+    fn test_from_str() {
+        assert_eq!("0".parse::<Scalar>().unwrap(), Scalar::ZERO);
+        assert_eq!("42".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0x2a".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0b101010".parse::<Scalar>().unwrap(), from_const(42));
+        assert_eq!("0o52".parse::<Scalar>().unwrap(), from_const(42));
+    }
+
+    #[test]
+    fn test_from_str_invalid() {
+        assert!("".parse::<Scalar>().is_err());
+        assert!("not a number".parse::<Scalar>().is_err());
+        // MODULUS^4, i.e. one past the largest representable value.
+        assert!(
+            "115792089129476408817739443160502628952720274482139873392618675794070921543681"
+                .parse::<Scalar>()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn test_parse_scalar() {
+        assert_eq!(parse_scalar("0x2a"), from_const(42));
+    }
+
+    #[test]
+    fn test_display_from_str_roundtrip() {
+        let value = Scalar(1, 2, 3, 4);
+        assert_eq!(format!("{}", value).parse::<Scalar>().unwrap(), value);
+        assert_eq!(
+            format!("{}", Scalar::MAX).parse::<Scalar>().unwrap(),
+            Scalar::MAX
+        );
+    }
+
+    #[test]
+    fn test_from_u8() {
+        assert_eq!(Scalar::from(0u8), from_const(0));
+        assert_eq!(Scalar::from(u8::MAX), from_const(u8::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u16() {
+        assert_eq!(Scalar::from(0u16), from_const(0));
+        assert_eq!(Scalar::from(u16::MAX), from_const(u16::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u32() {
+        assert_eq!(Scalar::from(0u32), from_const(0));
+        assert_eq!(Scalar::from(u32::MAX), from_const(u32::MAX as u64));
+    }
+
+    #[test]
+    fn test_from_u64() {
+        assert_eq!(Scalar::from(0u64), from_const(0));
+        assert_eq!(Scalar::from(u64::MAX), from_const(u64::MAX));
+        assert_eq!(Scalar::from(MODULUS), Scalar(0, 0, 1, 0));
+    }
+
+    #[test]
+    fn test_from_u128() {
+        assert_eq!(Scalar::from(0u128), from_const(0));
+        assert_eq!(Scalar::from(42u128), from_const(42));
+        // MODULUS^2, i.e. the smallest value needing all three lower words.
+        let modulus = MODULUS as u128;
+        assert_eq!(Scalar::from(modulus * modulus), Scalar(0, 1, 0, 0));
+        assert_eq!(
+            Scalar::from(u128::MAX),
+            Scalar(0, 1, 8589934590, 18446744065119617024)
+        );
+    }
+
+    #[test]
+    fn test_try_from_usize() {
+        assert_eq!(Scalar::try_from(0usize).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(42usize).unwrap(), from_const(42));
+    }
+
+    #[test]
+    fn test_try_from_u256() {
+        assert_eq!(Scalar::try_from(U256::from(0)).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(U256::from(42)).unwrap(), from_const(42));
+
+        let modulus = U256::from(MODULUS);
+        let modulus_pow4 = modulus * modulus * modulus * modulus;
+        assert_eq!(
+            Scalar::try_from(modulus_pow4 - U256::from(1)).unwrap(),
+            Scalar::MAX
+        );
+        assert!(Scalar::try_from(modulus_pow4).is_err());
+        assert!(Scalar::try_from(U256::MAX).is_err());
     }
 }

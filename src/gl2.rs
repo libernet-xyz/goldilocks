@@ -637,13 +637,7 @@ impl Field for Scalar {
                 .checked_add(digit as u128)
                 .ok_or(std::fmt::Error)?;
         }
-        let modulus = MODULUS as u128;
-        let hi = value / modulus;
-        let lo = value % modulus;
-        if hi >= modulus {
-            return Err(std::fmt::Error);
-        }
-        Ok(Self(hi as u64, lo as u64))
+        Self::try_from(value).map_err(|_| std::fmt::Error)
     }
 
     fn to_str_radix(&self, radix: usize, pad_to: usize, upper_case: bool) -> String {
