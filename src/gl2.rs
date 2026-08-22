@@ -375,6 +375,28 @@ impl<'a> DivAssign<&'a base::Scalar> for Scalar {
     }
 }
 
+impl Div<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn div(self, rhs: gl4::Scalar) -> Self::Output {
+        let inverse = rhs.invert_unwrap();
+        let (y0, y1) = gl_mul2(self.0, self.1, inverse.0, inverse.1);
+        let (c0, c1) = gl_mul2(self.0, self.1, inverse.2, inverse.3);
+        gl4::Scalar(y0, y1, c0, c1)
+    }
+}
+
+impl<'a> Div<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn div(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        let inverse = rhs.invert_unwrap();
+        let (y0, y1) = gl_mul2(self.0, self.1, inverse.0, inverse.1);
+        let (c0, c1) = gl_mul2(self.0, self.1, inverse.2, inverse.3);
+        gl4::Scalar(y0, y1, c0, c1)
+    }
+}
+
 impl Sum<Scalar> for Scalar {
     fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
         iter.fold(Self::ZERO, |a, b| a + b)
@@ -1065,6 +1087,14 @@ mod tests {
         let mut lhs = Scalar(10, 15);
         lhs /= &rhs;
         assert_eq!(lhs, Scalar(2, 3));
+    }
+
+    #[test]
+    fn test_div_gl4() {
+        let lhs = Scalar(5, 6);
+        let divisor = gl4::Scalar(1, 2, 3, 4);
+        assert_eq!((lhs / divisor) * divisor, gl4::Scalar::from(lhs));
+        assert_eq!((lhs / &divisor) * divisor, gl4::Scalar::from(lhs));
     }
 
     #[test]
