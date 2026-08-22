@@ -4,12 +4,11 @@ use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl
 use starkom_ff::Field;
 use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
 use std::iter::{Product, Sum};
-use std::ops::Div;
-use std::ops::DivAssign;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use std::str::FromStr;
 use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
+    CtOption,
 };
 
 /// Upper-case characters used in textual representations.
@@ -479,58 +478,58 @@ impl<'a> DivAssign<&'a Self> for Scalar {
 }
 
 impl Div<base::Scalar> for Scalar {
-    type Output = base::Scalar;
+    type Output = Scalar;
 
     fn div(self, rhs: base::Scalar) -> Self::Output {
-        todo!()
+        self * rhs.invert_unwrap()
     }
 }
 
 impl<'a> Div<&'a base::Scalar> for Scalar {
-    type Output = base::Scalar;
+    type Output = Scalar;
 
     fn div(self, rhs: &'a base::Scalar) -> Self::Output {
-        todo!()
+        self * rhs.invert_unwrap()
     }
 }
 
 impl DivAssign<base::Scalar> for Scalar {
     fn div_assign(&mut self, rhs: base::Scalar) {
-        todo!()
+        *self = *self * rhs.invert_unwrap();
     }
 }
 
 impl<'a> DivAssign<&'a base::Scalar> for Scalar {
     fn div_assign(&mut self, rhs: &'a base::Scalar) {
-        todo!()
+        *self = *self * rhs.invert_unwrap();
     }
 }
 
 impl Div<gl2::Scalar> for Scalar {
-    type Output = gl2::Scalar;
+    type Output = Scalar;
 
     fn div(self, rhs: gl2::Scalar) -> Self::Output {
-        todo!()
+        self * rhs.invert_unwrap()
     }
 }
 
 impl<'a> Div<&'a gl2::Scalar> for Scalar {
-    type Output = gl2::Scalar;
+    type Output = Scalar;
 
     fn div(self, rhs: &'a gl2::Scalar) -> Self::Output {
-        todo!()
+        self * rhs.invert_unwrap()
     }
 }
 
 impl DivAssign<gl2::Scalar> for Scalar {
     fn div_assign(&mut self, rhs: gl2::Scalar) {
-        todo!()
+        *self = *self * rhs.invert_unwrap();
     }
 }
 
 impl<'a> DivAssign<&'a gl2::Scalar> for Scalar {
     fn div_assign(&mut self, rhs: &'a gl2::Scalar) {
-        todo!()
+        *self = *self * rhs.invert_unwrap();
     }
 }
 
@@ -560,13 +559,13 @@ impl<'a> Product<&'a Scalar> for Scalar {
 
 impl Debug for Scalar {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Scalar({:#018x})", self)
+        write!(f, "Scalar({:#066x})", self)
     }
 }
 
 impl Display for Scalar {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#018x}", self)
+        write!(f, "{:#066x}", self)
     }
 }
 
@@ -655,6 +654,18 @@ impl From<u128> for Scalar {
     }
 }
 
+impl From<base::Scalar> for Scalar {
+    fn from(value: base::Scalar) -> Self {
+        Self(0, 0, 0, value.0)
+    }
+}
+
+impl From<gl2::Scalar> for Scalar {
+    fn from(value: gl2::Scalar) -> Self {
+        Self(0, 0, value.0, value.1)
+    }
+}
+
 impl TryFrom<usize> for Scalar {
     type Error = anyhow::Error;
 
@@ -670,7 +681,7 @@ impl Field for Scalar {
 
     const ONE: Self = Self(0, 0, 0, 1);
 
-    const MAX: Self = Self(MODULUS, MODULUS, MODULUS, MODULUS);
+    const MAX: Self = Self(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 1);
 
     fn is_odd(&self) -> Choice {
         todo!()
@@ -689,11 +700,25 @@ impl Field for Scalar {
     }
 
     fn invert(&self) -> subtle::CtOption<Self> {
-        todo!()
+        let a = gl2::Scalar(self.0, self.1);
+        let b = gl2::Scalar(self.2, self.3);
+        let a_squared = a * a;
+        // `a_squared * X`, using the same swap-and-scale trick as `A*C*X` in `mul_impl`.
+        let a_squared_x = gl2::Scalar(a_squared.1, gl_mul(QUADRATIC_NON_RESIDUE, a_squared.0));
+        let norm = b * b - a_squared_x;
+        let conjugate = Self(gl_sub(0, self.0), gl_sub(0, self.1), self.2, self.3);
+        norm.invert().map(|inverse_norm| conjugate * inverse_norm)
     }
 
     fn invert_vartime(&self) -> Option<Self> {
-        todo!()
+        let a = gl2::Scalar(self.0, self.1);
+        let b = gl2::Scalar(self.2, self.3);
+        let a_squared = a * a;
+        let a_squared_x = gl2::Scalar(a_squared.1, gl_mul(QUADRATIC_NON_RESIDUE, a_squared.0));
+        let norm = b * b - a_squared_x;
+        let conjugate = Self(gl_sub(0, self.0), gl_sub(0, self.1), self.2, self.3);
+        norm.invert_vartime()
+            .map(|inverse_norm| conjugate * inverse_norm)
     }
 
     fn pow(self, exp: Self) -> Self {
@@ -708,11 +733,11 @@ impl Field for Scalar {
         todo!()
     }
 
-    fn try_from_le_bytes(bytes: &[u8]) -> subtle::CtOption<Self> {
+    fn try_from_le_bytes(bytes: &[u8]) -> CtOption<Self> {
         todo!()
     }
 
-    fn try_from_be_bytes(bytes: &[u8]) -> subtle::CtOption<Self> {
+    fn try_from_be_bytes(bytes: &[u8]) -> CtOption<Self> {
         todo!()
     }
 
@@ -1056,6 +1081,121 @@ mod tests {
         let mut lhs = Scalar(1, 2, 3, 4);
         lhs *= &rhs;
         assert_eq!(lhs, Scalar(16, 47, 38, 129));
+    }
+
+    #[test]
+    fn test_div_by_one() {
+        assert_eq!(Scalar(1, 2, 3, 4) / Scalar::ONE, Scalar(1, 2, 3, 4));
+        assert_eq!(Scalar(1, 2, 3, 4) / &Scalar::ONE, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_div() {
+        let lhs = Scalar(1, 2, 3, 4);
+        let rhs = Scalar(5, 6, 7, 8);
+        assert_eq!((lhs * rhs) / rhs, lhs);
+        assert_eq!((lhs * rhs) / &rhs, lhs);
+    }
+
+    #[test]
+    fn test_div_assign() {
+        let rhs = Scalar(5, 6, 7, 8);
+        let mut lhs = Scalar(1, 2, 3, 4) * rhs;
+        lhs /= rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_div_assign_ref() {
+        let rhs = Scalar(5, 6, 7, 8);
+        let mut lhs = Scalar(1, 2, 3, 4) * rhs;
+        lhs /= &rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_div_base_scalar() {
+        let lhs = Scalar(5, 10, 15, 20);
+        let rhs = base::Scalar(5);
+        assert_eq!(lhs / rhs, Scalar(1, 2, 3, 4));
+        assert_eq!(lhs / &rhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_div_assign_base_scalar() {
+        let rhs = base::Scalar(5);
+
+        let mut lhs = Scalar(5, 10, 15, 20);
+        lhs /= rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+
+        let mut lhs = Scalar(5, 10, 15, 20);
+        lhs /= &rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_div_gl2() {
+        let lhs = Scalar(16, 47, 38, 129);
+        let rhs = gl2::Scalar(5, 6);
+        assert_eq!(lhs / rhs, Scalar(1, 2, 3, 4));
+        assert_eq!(lhs / &rhs, Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_div_assign_gl2() {
+        let rhs = gl2::Scalar(5, 6);
+
+        let mut lhs = Scalar(16, 47, 38, 129);
+        lhs /= rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+
+        let mut lhs = Scalar(16, 47, 38, 129);
+        lhs /= &rhs;
+        assert_eq!(lhs, Scalar(1, 2, 3, 4));
+    }
+
+    fn test_inversion_impl(value: Scalar) {
+        assert_ne!(value, Scalar::ZERO);
+        assert_eq!(value * value.invert().unwrap(), Scalar::ONE);
+        assert_eq!(value * value.invert_unwrap(), Scalar::ONE);
+        assert_eq!(value * value.invert_or_zero(), Scalar::ONE);
+        assert_eq!(value * value.invert_vartime().unwrap(), Scalar::ONE);
+    }
+
+    #[test]
+    fn test_inversion() {
+        assert!(Scalar::ZERO.invert_vartime().is_none());
+        assert_eq!(Scalar::ZERO.invert_or_zero(), Scalar::ZERO);
+        assert!(bool::from(Scalar::ZERO.invert().is_none()));
+        test_inversion_impl(Scalar::ONE);
+        test_inversion_impl(Scalar(0, 0, 0, 42));
+        test_inversion_impl(Scalar(1, 0, 0, 0));
+        test_inversion_impl(Scalar(0, 0, 1, 0));
+        test_inversion_impl(Scalar(7, 11, 13, 17));
+        test_inversion_impl(Scalar::MAX);
+    }
+
+    #[test]
+    fn test_invert_batch() {
+        let values = vec![
+            Scalar(1, 2, 3, 4),
+            Scalar(0, 0, 0, 42),
+            Scalar::ONE,
+            Scalar(3, 5, 7, 9),
+        ];
+        let expected: Vec<Scalar> = values
+            .iter()
+            .map(|value| value.invert_vartime().unwrap())
+            .collect();
+
+        let mut batch = values.clone();
+        Scalar::invert_batch(&mut batch);
+        assert_eq!(batch, expected);
+
+        let mut batch = values;
+        Scalar::invert_batch_vartime(&mut batch);
+        assert_eq!(batch, expected);
     }
 
     #[test]
