@@ -47,9 +47,14 @@ pub(crate) const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
 /// Multiplies `a * X + b` by `c * X + d` in the quadratic extension
 /// `GF(p)[X] / (X^2 - QUADRATIC_NON_RESIDUE)` of the Goldilocks field, returning the `(hi, lo)`
 /// coefficients of the product.
+///
+/// Uses the Karatsuba identity `a*d + b*c = (a+b)*(c+d) - a*c - b*d` to compute the product with 3
+/// general multiplications (not counting the one by `QUADRATIC_NON_RESIDUE`) rather than 4.
 #[inline]
 pub(crate) const fn gl_mul2(a: u64, b: u64, c: u64, d: u64) -> (u64, u64) {
-    let hi = gl_add(gl_mul(a, d), gl_mul(b, c));
-    let lo = gl_add(gl_mul(b, d), gl_mul(QUADRATIC_NON_RESIDUE, gl_mul(a, c)));
+    let ac = gl_mul(a, c);
+    let bd = gl_mul(b, d);
+    let hi = gl_sub(gl_sub(gl_mul(gl_add(a, b), gl_add(c, d)), ac), bd);
+    let lo = gl_add(bd, gl_mul(QUADRATIC_NON_RESIDUE, ac));
     (hi, lo)
 }

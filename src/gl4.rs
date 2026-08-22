@@ -53,34 +53,41 @@ impl Scalar {
     /// `p*X+q`) by `X` gives `p*X^2 + q*X = q*X + QUADRATIC_NON_RESIDUE*p`, that is
     /// `(q, QUADRATIC_NON_RESIDUE*p)`, which is why `A*C*X` below is just a swap-and-scale of `A*C`
     /// rather than a full GL2 multiplication.
+    ///
+    /// Rather than computing `A*D`, `B*C`, `B*D` and `A*C` as 4 separate GL2 multiplications, this
+    /// uses the same Karatsuba identity as [`gl_mul2`] one tower level up: `A*D + B*C =
+    /// (A+B)*(C+D) - A*C - B*D`. Since `A*C` and `B*D` are needed on their own anyway (for `A*C*X`
+    /// and for the constant term, respectively), this only requires computing `A*C`, `B*D` and
+    /// `(A+B)*(C+D)` as GL2 multiplications, i.e. 3 instead of 4.
     fn mul_impl(self, rhs: Self) -> Self {
         let (a0, a1) = (self.0, self.1);
         let (b0, b1) = (self.2, self.3);
         let (c0, c1) = (rhs.0, rhs.1);
         let (d0, d1) = (rhs.2, rhs.3);
 
-        // A*D
-        let (ad0, ad1) = gl_mul2(a0, a1, d0, d1);
-
-        // B*C
-        let (bc0, bc1) = gl_mul2(b0, b1, c0, c1);
+        // A*C
+        let (ac0, ac1) = gl_mul2(a0, a1, c0, c1);
 
         // B*D
         let (bd0, bd1) = gl_mul2(b0, b1, d0, d1);
 
-        // A*C
-        let (ac0, ac1) = gl_mul2(a0, a1, c0, c1);
+        // (A+B)*(C+D)
+        let (s0, s1) = gl_mul2(
+            gl_add(a0, b0),
+            gl_add(a1, b1),
+            gl_add(c0, d0),
+            gl_add(c1, d1),
+        );
+
+        // A*D + B*C = (A+B)*(C+D) - A*C - B*D
+        let ad_bc0 = gl_sub(gl_sub(s0, ac0), bd0);
+        let ad_bc1 = gl_sub(gl_sub(s1, ac1), bd1);
 
         // A*C*X
         let acx0 = ac1;
         let acx1 = gl_mul(QUADRATIC_NON_RESIDUE, ac0);
 
-        Self(
-            gl_add(ad0, bc0),
-            gl_add(ad1, bc1),
-            gl_add(bd0, acx0),
-            gl_add(bd1, acx1),
-        )
+        Self(ad_bc0, ad_bc1, gl_add(bd0, acx0), gl_add(bd1, acx1))
     }
 }
 
