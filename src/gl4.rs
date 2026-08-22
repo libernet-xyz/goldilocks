@@ -705,28 +705,41 @@ impl Field for Scalar {
     const MAX: Self = Self(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 1);
 
     fn is_odd(&self) -> Choice {
-        todo!()
+        (((self.0 ^ self.1 ^ self.2 ^ self.3) & 1) as u8).into()
     }
 
     fn try_random<R: rand_core::TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
-        todo!()
+        Ok(Self(
+            base::Scalar::try_random(rng)?.0,
+            base::Scalar::try_random(rng)?.0,
+            base::Scalar::try_random(rng)?.0,
+            base::Scalar::try_random(rng)?.0,
+        ))
     }
 
     fn random<R: rand_core::CryptoRng>(rng: &mut R) -> Self {
-        todo!()
+        Self(
+            base::Scalar::random(rng).0,
+            base::Scalar::random(rng).0,
+            base::Scalar::random(rng).0,
+            base::Scalar::random(rng).0,
+        )
     }
 
     fn random_default() -> Self {
-        todo!()
+        Self(
+            base::Scalar::random_default().0,
+            base::Scalar::random_default().0,
+            base::Scalar::random_default().0,
+            base::Scalar::random_default().0,
+        )
     }
 
     fn invert(&self) -> subtle::CtOption<Self> {
         let a = gl2::Scalar(self.0, self.1);
         let b = gl2::Scalar(self.2, self.3);
-        let a_squared = a * a;
-        // `a_squared * X`, using the same swap-and-scale trick as `A*C*X` in `mul_impl`.
-        let a_squared_x = gl2::Scalar(a_squared.1, gl_mul(QUADRATIC_NON_RESIDUE, a_squared.0));
-        let norm = b * b - a_squared_x;
+        let a2 = a * a;
+        let norm = b * b - gl2::Scalar(a2.1, gl_mul(QUADRATIC_NON_RESIDUE, a2.0));
         let conjugate = Self(gl_sub(0, self.0), gl_sub(0, self.1), self.2, self.3);
         norm.invert().map(|inverse_norm| conjugate * inverse_norm)
     }
@@ -734,32 +747,84 @@ impl Field for Scalar {
     fn invert_vartime(&self) -> Option<Self> {
         let a = gl2::Scalar(self.0, self.1);
         let b = gl2::Scalar(self.2, self.3);
-        let a_squared = a * a;
-        let a_squared_x = gl2::Scalar(a_squared.1, gl_mul(QUADRATIC_NON_RESIDUE, a_squared.0));
-        let norm = b * b - a_squared_x;
+        let a2 = a * a;
+        let norm = b * b - gl2::Scalar(a2.1, gl_mul(QUADRATIC_NON_RESIDUE, a2.0));
         let conjugate = Self(gl_sub(0, self.0), gl_sub(0, self.1), self.2, self.3);
         norm.invert_vartime()
             .map(|inverse_norm| conjugate * inverse_norm)
     }
 
-    fn pow(self, exp: Self) -> Self {
-        todo!()
+    fn pow(mut self, exp: Self) -> Self {
+        let mut exponent = exp.to_u256();
+        let mut result = Self::ONE;
+        for _ in 0..Self::NUM_BITS {
+            let product = result * self;
+            let bit = ((exponent & U256::one()).as_u64() as u8).into();
+            result = Scalar::conditional_select(&result, &product, bit);
+            exponent >>= 1;
+            self = self.square();
+        }
+        result
     }
 
-    fn pow_vartime(self, exp: Self) -> Self {
-        todo!()
+    fn pow_vartime(mut self, exp: Self) -> Self {
+        let mut exponent = exp.to_u256();
+        let mut result = Self::ONE;
+        while exponent != U256::zero() {
+            if (exponent & U256::one()) != U256::zero() {
+                result *= self;
+            }
+            exponent >>= 1;
+            self = self.square();
+        }
+        result
     }
 
     fn div_int(&self, rhs: &Self) -> (Self, Self) {
-        todo!()
+        let lhs_value = self.to_u256();
+        let rhs_value = rhs.to_u256();
+        let quotient = lhs_value / rhs_value;
+        let remainder = lhs_value % rhs_value;
+        (
+            Self::try_from(quotient).unwrap(),
+            Self::try_from(remainder).unwrap(),
+        )
     }
 
     fn try_from_le_bytes(bytes: &[u8]) -> CtOption<Self> {
-        todo!()
+        let value = U256::from_little_endian(bytes);
+        let modulus = U256::from(MODULUS);
+        let mut remaining = value;
+        let d0 = remaining % modulus;
+        remaining /= modulus;
+        let d1 = remaining % modulus;
+        remaining /= modulus;
+        let d2 = remaining % modulus;
+        remaining /= modulus;
+        let d3 = remaining % modulus;
+        remaining /= modulus;
+        CtOption::new(
+            Self(d3.as_u64(), d2.as_u64(), d1.as_u64(), d0.as_u64()),
+            ((remaining == U256::zero()) as u8).into(),
+        )
     }
 
     fn try_from_be_bytes(bytes: &[u8]) -> CtOption<Self> {
-        todo!()
+        let value = U256::from_big_endian(bytes);
+        let modulus = U256::from(MODULUS);
+        let mut remaining = value;
+        let d0 = remaining % modulus;
+        remaining /= modulus;
+        let d1 = remaining % modulus;
+        remaining /= modulus;
+        let d2 = remaining % modulus;
+        remaining /= modulus;
+        let d3 = remaining % modulus;
+        remaining /= modulus;
+        CtOption::new(
+            Self(d3.as_u64(), d2.as_u64(), d1.as_u64(), d0.as_u64()),
+            ((remaining == U256::zero()) as u8).into(),
+        )
     }
 
     fn from_str_radix(s: &str, radix: usize) -> Result<Self, std::fmt::Error> {
@@ -813,11 +878,19 @@ impl Field for Scalar {
     }
 
     fn try_to_u8(&self) -> Option<u8> {
-        todo!()
+        if self.0 != 0 || self.1 != 0 || self.2 != 0 || self.3 > u8::MAX as u64 {
+            None
+        } else {
+            Some(self.3 as u8)
+        }
     }
 
     fn try_to_u16(&self) -> Option<u16> {
-        todo!()
+        if self.0 != 0 || self.1 != 0 || self.2 != 0 || self.3 > u16::MAX as u64 {
+            None
+        } else {
+            Some(self.3 as u16)
+        }
     }
 }
 
@@ -884,6 +957,29 @@ mod tests {
         assert_eq!(from_const(1), Scalar::ONE);
         assert_eq!(from_const(MODULUS), Scalar(0, 0, 1, 0));
         assert_eq!(from_const(MODULUS + 1), Scalar(0, 0, 1, 1));
+    }
+
+    #[test]
+    fn test_zero() {
+        assert_eq!(Scalar::ZERO, Scalar::zero());
+        assert_eq!(Scalar::ZERO, from_const(0));
+        assert_eq!(Scalar::ZERO + from_const(1), from_const(1));
+        assert_eq!(Scalar::ZERO * Scalar(1, 2, 3, 4), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_one() {
+        assert_eq!(Scalar::ONE, Scalar::one());
+        assert_eq!(Scalar::ONE, from_const(1));
+        assert_eq!(Scalar::ONE * Scalar(1, 2, 3, 4), Scalar(1, 2, 3, 4));
+    }
+
+    #[test]
+    fn test_max() {
+        assert_eq!(
+            Scalar::MAX,
+            Scalar(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 1)
+        );
     }
 
     #[test]
@@ -1464,5 +1560,157 @@ mod tests {
         );
         assert!(Scalar::try_from(modulus_pow4).is_err());
         assert!(Scalar::try_from(U256::MAX).is_err());
+    }
+
+    #[test]
+    fn test_is_even() {
+        assert!(bool::from(Scalar(0, 0, 0, 0).is_even()));
+        assert!(bool::from(Scalar(1, 1, 0, 0).is_even()));
+        assert!(!bool::from(Scalar(0, 0, 0, 1).is_even()));
+        assert!(!bool::from(Scalar(1, 0, 0, 0).is_even()));
+    }
+
+    #[test]
+    fn test_is_odd() {
+        assert!(!bool::from(Scalar(0, 0, 0, 0).is_odd()));
+        assert!(!bool::from(Scalar(1, 1, 0, 0).is_odd()));
+        assert!(bool::from(Scalar(0, 0, 0, 1).is_odd()));
+        assert!(bool::from(Scalar(1, 0, 0, 0).is_odd()));
+    }
+
+    struct OsRng;
+
+    impl rand_core::TryRng for OsRng {
+        type Error = getrandom::Error;
+
+        fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Self::Error> {
+            getrandom::fill(dest)
+        }
+
+        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
+            let mut bytes = [0u8; 4];
+            getrandom::fill(&mut bytes)?;
+            Ok(u32::from_le_bytes(bytes))
+        }
+
+        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
+            let mut bytes = [0u8; 8];
+            getrandom::fill(&mut bytes)?;
+            Ok(u64::from_le_bytes(bytes))
+        }
+    }
+
+    impl rand_core::TryCryptoRng for OsRng {}
+
+    #[test]
+    fn test_try_random() {
+        let mut rng = OsRng;
+        assert_ne!(
+            Scalar::try_random(&mut rng).unwrap(),
+            Scalar::try_random(&mut rng).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_random() {
+        let mut rng = rand_core::UnwrapErr(OsRng);
+        assert_ne!(Scalar::random(&mut rng), Scalar::random(&mut rng));
+    }
+
+    #[test]
+    fn test_random_default() {
+        assert_ne!(Scalar::random_default(), Scalar::random_default());
+    }
+
+    #[test]
+    fn test_double() {
+        assert_eq!(Scalar(1, 2, 3, 4).double(), Scalar(2, 4, 6, 8));
+    }
+
+    #[test]
+    fn test_square() {
+        assert_eq!(Scalar(0, 0, 0, 5).square(), Scalar(0, 0, 0, 25));
+    }
+
+    #[test]
+    fn test_power() {
+        let value = Scalar(1, 2, 3, 4);
+        assert_eq!(value.pow(Scalar::ZERO), Scalar::ONE);
+        assert_eq!(value.pow(Scalar::ONE), value);
+        assert_eq!(value.pow(from_const(2)), value * value);
+        assert_eq!(value.pow(from_const(3)), value * value * value);
+    }
+
+    #[test]
+    fn test_power_vartime() {
+        let value = Scalar(1, 2, 3, 4);
+        assert_eq!(value.pow_vartime(Scalar::ZERO), Scalar::ONE);
+        assert_eq!(value.pow_vartime(from_const(3)), value * value * value);
+        assert_eq!(value.pow_vartime(from_const(3)), value.pow(from_const(3)));
+    }
+
+    #[test]
+    fn test_integer_division() {
+        assert_eq!(
+            from_const(13).div_int(&from_const(5)),
+            (from_const(2), from_const(3))
+        );
+    }
+
+    #[test]
+    fn test_integer_division_multi_word() {
+        // lhs = 1*MODULUS^3 + 2*MODULUS^2 + 3*MODULUS + 4, divided by 1000000007.
+        let lhs = Scalar(1, 2, 3, 4);
+        let rhs = from_const(1000000007);
+        let quotient = Scalar(0, 18446743940, 5301165192514772811, 4877998472944559253);
+        let remainder = from_const(586443342);
+        assert_eq!(lhs.div_int(&rhs), (quotient, remainder));
+    }
+
+    #[test]
+    fn test_try_from_le_bytes() {
+        let mut bytes = [0u8; 32];
+        bytes[0..8].copy_from_slice(&42u64.to_le_bytes());
+        assert_eq!(Scalar::try_from_le_bytes(&bytes).unwrap(), from_const(42));
+        assert!(bool::from(
+            Scalar::try_from_le_bytes(&[255u8; 32]).is_none()
+        ));
+    }
+
+    #[test]
+    fn test_try_from_be_bytes() {
+        let mut bytes = [0u8; 32];
+        bytes[24..32].copy_from_slice(&42u64.to_be_bytes());
+        assert_eq!(Scalar::try_from_be_bytes(&bytes).unwrap(), from_const(42));
+    }
+
+    #[test]
+    fn test_le_be_bytes_roundtrip() {
+        let value = Scalar(1, 2, 3, 4);
+        let n = value.to_u256();
+        assert_eq!(
+            Scalar::try_from_le_bytes(&n.to_little_endian()).unwrap(),
+            value
+        );
+        assert_eq!(
+            Scalar::try_from_be_bytes(&n.to_big_endian()).unwrap(),
+            value
+        );
+    }
+
+    #[test]
+    fn test_try_to_u8() {
+        assert_eq!(from_const(0).try_to_u8().unwrap(), 0);
+        assert_eq!(from_const(u8::MAX as u64).try_to_u8().unwrap(), u8::MAX);
+        assert!(from_const(u8::MAX as u64 + 1).try_to_u8().is_none());
+        assert!(Scalar(1, 0, 0, 0).try_to_u8().is_none());
+    }
+
+    #[test]
+    fn test_try_to_u16() {
+        assert_eq!(from_const(0).try_to_u16().unwrap(), 0);
+        assert_eq!(from_const(u16::MAX as u64).try_to_u16().unwrap(), u16::MAX);
+        assert!(from_const(u16::MAX as u64 + 1).try_to_u16().is_none());
+        assert!(Scalar(1, 0, 0, 0).try_to_u16().is_none());
     }
 }
