@@ -1,7 +1,13 @@
 use crate::base;
 use crate::gl2;
 use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl_sub};
+use starkom_ff::Field;
+use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
+use std::iter::{Product, Sum};
+use std::ops::Div;
+use std::ops::DivAssign;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::str::FromStr;
 use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
 };
@@ -27,7 +33,7 @@ static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuv
 /// NOTE: The `u64` words are stored from most significant to least significant: `Scalar::0` is the
 /// most significant and `Scalar::3` is the least significant. This way Rust's automatic comparison
 /// trait implementations work as intended.
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Scalar(
     pub(crate) u64,
     pub(crate) u64,
@@ -444,6 +450,289 @@ impl<'a> MulAssign<&'a gl2::Scalar> for Scalar {
     }
 }
 
+impl Div<Self> for Scalar {
+    type Output = Scalar;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        self * rhs.invert_unwrap()
+    }
+}
+
+impl<'a> Div<&'a Self> for Scalar {
+    type Output = Scalar;
+
+    fn div(self, rhs: &'a Self) -> Self::Output {
+        self * rhs.invert_unwrap()
+    }
+}
+
+impl DivAssign<Self> for Scalar {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self * rhs.invert_unwrap();
+    }
+}
+
+impl<'a> DivAssign<&'a Self> for Scalar {
+    fn div_assign(&mut self, rhs: &'a Self) {
+        *self = *self * rhs.invert_unwrap();
+    }
+}
+
+impl Div<base::Scalar> for Scalar {
+    type Output = base::Scalar;
+
+    fn div(self, rhs: base::Scalar) -> Self::Output {
+        todo!()
+    }
+}
+
+impl<'a> Div<&'a base::Scalar> for Scalar {
+    type Output = base::Scalar;
+
+    fn div(self, rhs: &'a base::Scalar) -> Self::Output {
+        todo!()
+    }
+}
+
+impl DivAssign<base::Scalar> for Scalar {
+    fn div_assign(&mut self, rhs: base::Scalar) {
+        todo!()
+    }
+}
+
+impl<'a> DivAssign<&'a base::Scalar> for Scalar {
+    fn div_assign(&mut self, rhs: &'a base::Scalar) {
+        todo!()
+    }
+}
+
+impl Div<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn div(self, rhs: gl2::Scalar) -> Self::Output {
+        todo!()
+    }
+}
+
+impl<'a> Div<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn div(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        todo!()
+    }
+}
+
+impl DivAssign<gl2::Scalar> for Scalar {
+    fn div_assign(&mut self, rhs: gl2::Scalar) {
+        todo!()
+    }
+}
+
+impl<'a> DivAssign<&'a gl2::Scalar> for Scalar {
+    fn div_assign(&mut self, rhs: &'a gl2::Scalar) {
+        todo!()
+    }
+}
+
+impl Sum<Scalar> for Scalar {
+    fn sum<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |a, b| a + b)
+    }
+}
+
+impl<'a> Sum<&'a Scalar> for Scalar {
+    fn sum<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
+        iter.fold(Self::ZERO, |a, b| a + b)
+    }
+}
+
+impl Product<Scalar> for Scalar {
+    fn product<I: Iterator<Item = Self>>(iter: I) -> Self {
+        iter.fold(Self::ONE, |a, b| a * b)
+    }
+}
+
+impl<'a> Product<&'a Scalar> for Scalar {
+    fn product<I: Iterator<Item = &'a Self>>(iter: I) -> Self {
+        iter.fold(Self::ONE, |a, b| a * b)
+    }
+}
+
+impl Debug for Scalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Scalar({:#018x})", self)
+    }
+}
+
+impl Display for Scalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#018x}", self)
+    }
+}
+
+impl Binary for Scalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let prefix = if f.alternate() { "0b" } else { "" };
+        f.pad_integral(true, prefix, &self.to_str_radix(2, 0, false))
+    }
+}
+
+impl Octal for Scalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let prefix = if f.alternate() { "0o" } else { "" };
+        f.pad_integral(true, prefix, &self.to_str_radix(8, 0, false))
+    }
+}
+
+impl LowerHex for Scalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let prefix = if f.alternate() { "0x" } else { "" };
+        f.pad_integral(true, prefix, &self.to_str_radix(16, 0, false))
+    }
+}
+
+impl UpperHex for Scalar {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let prefix = if f.alternate() { "0x" } else { "" };
+        f.pad_integral(true, prefix, &self.to_str_radix(16, 0, true))
+    }
+}
+
+impl FromStr for Scalar {
+    type Err = std::fmt::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("0x") || s.starts_with("0X") {
+            Self::from_str_radix(&s[2..], 16)
+        } else if s.starts_with("0b") || s.starts_with("0B") {
+            Self::from_str_radix(&s[2..], 2)
+        } else if s.starts_with("0o") || s.starts_with("0O") {
+            Self::from_str_radix(&s[2..], 8)
+        } else if s.starts_with("0") {
+            Self::from_str_radix(s, 8)
+        } else {
+            Self::from_str_radix(s, 10)
+        }
+    }
+}
+
+impl From<u8> for Scalar {
+    fn from(value: u8) -> Self {
+        Self(0, 0, 0, value as u64)
+    }
+}
+
+impl From<u16> for Scalar {
+    fn from(value: u16) -> Self {
+        Self(0, 0, 0, value as u64)
+    }
+}
+
+impl From<u32> for Scalar {
+    fn from(value: u32) -> Self {
+        Self(0, 0, 0, value as u64)
+    }
+}
+
+impl From<u64> for Scalar {
+    fn from(value: u64) -> Self {
+        Self(0, 0, value / MODULUS, value % MODULUS)
+    }
+}
+
+impl From<u128> for Scalar {
+    fn from(value: u128) -> Self {
+        const MODULUS_U128: u128 = MODULUS as u128;
+        let value0 = value;
+        let value1 = value0 / MODULUS_U128;
+        let value2 = value1 / MODULUS_U128;
+        Self(
+            0,
+            (value2 % MODULUS_U128) as u64,
+            (value1 % MODULUS_U128) as u64,
+            (value0 % MODULUS_U128) as u64,
+        )
+    }
+}
+
+impl TryFrom<usize> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: usize) -> Result<Self, Self::Error> {
+        todo!()
+    }
+}
+
+impl Field for Scalar {
+    const LEN: usize = 32;
+
+    const ZERO: Self = Self(0, 0, 0, 0);
+
+    const ONE: Self = Self(0, 0, 0, 1);
+
+    const MAX: Self = Self(MODULUS, MODULUS, MODULUS, MODULUS);
+
+    fn is_odd(&self) -> Choice {
+        todo!()
+    }
+
+    fn try_random<R: rand_core::TryCryptoRng>(rng: &mut R) -> Result<Self, R::Error> {
+        todo!()
+    }
+
+    fn random<R: rand_core::CryptoRng>(rng: &mut R) -> Self {
+        todo!()
+    }
+
+    fn random_default() -> Self {
+        todo!()
+    }
+
+    fn invert(&self) -> subtle::CtOption<Self> {
+        todo!()
+    }
+
+    fn invert_vartime(&self) -> Option<Self> {
+        todo!()
+    }
+
+    fn pow(self, exp: Self) -> Self {
+        todo!()
+    }
+
+    fn pow_vartime(self, exp: Self) -> Self {
+        todo!()
+    }
+
+    fn div_int(&self, rhs: &Self) -> (Self, Self) {
+        todo!()
+    }
+
+    fn try_from_le_bytes(bytes: &[u8]) -> subtle::CtOption<Self> {
+        todo!()
+    }
+
+    fn try_from_be_bytes(bytes: &[u8]) -> subtle::CtOption<Self> {
+        todo!()
+    }
+
+    fn from_str_radix(s: &str, radix: usize) -> Result<Self, std::fmt::Error> {
+        todo!()
+    }
+
+    fn to_str_radix(&self, radix: usize, pad_to: usize, upper_case: bool) -> String {
+        todo!()
+    }
+
+    fn try_to_u8(&self) -> Option<u8> {
+        todo!()
+    }
+
+    fn try_to_u16(&self) -> Option<u16> {
+        todo!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -456,8 +745,8 @@ mod tests {
 
     #[test]
     fn test_from_const() {
-        assert_eq!(from_const(0), Scalar(0, 0, 0, 0));
-        assert_eq!(from_const(1), Scalar(0, 0, 0, 1));
+        assert_eq!(from_const(0), Scalar::ZERO);
+        assert_eq!(from_const(1), Scalar::ONE);
         assert_eq!(from_const(MODULUS), Scalar(0, 0, 1, 0));
         assert_eq!(from_const(MODULUS + 1), Scalar(0, 0, 1, 1));
     }
@@ -598,12 +887,12 @@ mod tests {
 
     #[test]
     fn test_neg() {
-        assert_eq!(-Scalar(0, 0, 0, 0), Scalar(0, 0, 0, 0));
+        assert_eq!(-Scalar::ZERO, Scalar::ZERO);
         assert_eq!(
             -Scalar(1, 2, 3, 4),
             Scalar(MODULUS - 1, MODULUS - 2, MODULUS - 3, MODULUS - 4)
         );
-        assert_eq!(Scalar(1, 2, 3, 4) + -Scalar(1, 2, 3, 4), Scalar(0, 0, 0, 0));
+        assert_eq!(Scalar(1, 2, 3, 4) + -Scalar(1, 2, 3, 4), Scalar::ZERO);
     }
 
     #[test]
@@ -693,14 +982,14 @@ mod tests {
 
     #[test]
     fn test_mul_by_zero() {
-        assert_eq!(Scalar(0, 0, 0, 0) * Scalar(1, 2, 3, 4), Scalar(0, 0, 0, 0));
-        assert_eq!(Scalar(1, 2, 3, 4) * Scalar(0, 0, 0, 0), Scalar(0, 0, 0, 0));
+        assert_eq!(Scalar::ZERO * Scalar(1, 2, 3, 4), Scalar::ZERO);
+        assert_eq!(Scalar(1, 2, 3, 4) * Scalar::ZERO, Scalar::ZERO);
     }
 
     #[test]
     fn test_mul_by_one() {
-        assert_eq!(Scalar(0, 0, 0, 1) * Scalar(2, 3, 4, 5), Scalar(2, 3, 4, 5));
-        assert_eq!(Scalar(2, 3, 4, 5) * Scalar(0, 0, 0, 1), Scalar(2, 3, 4, 5));
+        assert_eq!(Scalar::ONE * Scalar(2, 3, 4, 5), Scalar(2, 3, 4, 5));
+        assert_eq!(Scalar(2, 3, 4, 5) * Scalar::ONE, Scalar(2, 3, 4, 5));
     }
 
     #[test]
@@ -767,5 +1056,19 @@ mod tests {
         let mut lhs = Scalar(1, 2, 3, 4);
         lhs *= &rhs;
         assert_eq!(lhs, Scalar(16, 47, 38, 129));
+    }
+
+    #[test]
+    fn test_sum() {
+        let values = vec![Scalar(1, 2, 3, 4), Scalar(5, 6, 7, 8), Scalar(1, 1, 1, 1)];
+        assert_eq!(values.iter().sum::<Scalar>(), Scalar(7, 9, 11, 13));
+        assert_eq!(values.into_iter().sum::<Scalar>(), Scalar(7, 9, 11, 13));
+    }
+
+    #[test]
+    fn test_product() {
+        let values = vec![Scalar(0, 0, 0, 2), Scalar(0, 0, 0, 3), Scalar(0, 0, 0, 4)];
+        assert_eq!(values.iter().product::<Scalar>(), Scalar(0, 0, 0, 24));
+        assert_eq!(values.into_iter().product::<Scalar>(), Scalar(0, 0, 0, 24));
     }
 }
