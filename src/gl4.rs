@@ -2,8 +2,8 @@ use crate::base;
 use crate::gl2;
 use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl_sub};
 use anyhow::anyhow;
-use primitive_types::U256;
-use starkom_ff::Field;
+use primitive_types::{H512, U256, U512};
+use starkom_ff::{Field, Field256};
 use std::fmt::{Binary, Debug, Display, Formatter, LowerHex, Octal, UpperHex};
 use std::iter::{Product, Sum};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
@@ -688,7 +688,7 @@ impl TryFrom<U256> for Scalar {
         remaining /= modulus;
         let d3 = remaining % modulus;
         remaining /= modulus;
-        if remaining != U256::from(0) {
+        if remaining != U256::zero() {
             return Err(anyhow!("{:#x} exceeds the Goldilocks^4 range", value));
         }
         Ok(Self(d3.as_u64(), d2.as_u64(), d1.as_u64(), d0.as_u64()))
@@ -767,7 +767,7 @@ impl Field for Scalar {
         if s.is_empty() {
             return Err(std::fmt::Error);
         }
-        let mut value = U256::from(0);
+        let mut value = U256::zero();
         let radix_u256 = U256::from(radix);
         for byte in s.bytes() {
             let digit = CHARACTERS_UPPER_CASE[..radix]
@@ -795,14 +795,10 @@ impl Field for Scalar {
         } else {
             CHARACTERS_LOWER_CASE
         };
-        let modulus = U256::from(MODULUS);
-        let mut value = U256::from(self.0) * modulus * modulus * modulus
-            + U256::from(self.1) * modulus * modulus
-            + U256::from(self.2) * modulus
-            + U256::from(self.3);
+        let mut value = self.to_u256();
         let mut s = String::default();
         let radix = U256::from(radix);
-        while value != U256::from(0) {
+        while value != U256::zero() {
             let digit = value % radix;
             s.push(characters[digit.as_u64() as usize] as char);
             value /= radix;
@@ -822,6 +818,48 @@ impl Field for Scalar {
 
     fn try_to_u16(&self) -> Option<u16> {
         todo!()
+    }
+}
+
+impl Field256 for Scalar {
+    fn to_le_bytes(&self) -> [u8; 32] {
+        todo!()
+    }
+
+    fn to_be_bytes(&self) -> [u8; 32] {
+        todo!()
+    }
+
+    fn from_u512_mod_n(u512: U512) -> Self {
+        todo!()
+    }
+
+    fn from_h512(h512: H512) -> Self {
+        todo!()
+    }
+
+    fn try_to_u32(&self) -> CtOption<u32> {
+        todo!()
+    }
+
+    fn try_to_u64(&self) -> CtOption<u64> {
+        todo!()
+    }
+
+    fn try_to_u128(&self) -> CtOption<u128> {
+        todo!()
+    }
+
+    fn to_u256(&self) -> U256 {
+        let modulus = U256::from(MODULUS);
+        U256::from(self.0) * modulus * modulus * modulus
+            + U256::from(self.1) * modulus * modulus
+            + U256::from(self.2) * modulus
+            + U256::from(self.3)
+    }
+
+    fn to_u512(&self) -> U512 {
+        self.to_u256().into()
     }
 }
 
