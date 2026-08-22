@@ -1,3 +1,6 @@
+use crate::gl2;
+use crate::gl4;
+use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
 use anyhow::Context;
 use primitive_types::{U256, U512};
 use rand_core::{CryptoRng, TryCryptoRng};
@@ -11,56 +14,17 @@ use subtle::{
     CtOption,
 };
 
-/// The order of the Goldilocks field, `0xffffffff00000001`.
-pub const MODULUS: u64 = 0xffffffff00000001u64;
-
-const EPSILON: u64 = (1 << 32) - 1;
-
 /// Upper-case characters used in textual representations.
 static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /// Lower-case characters used in textual representations.
 static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
-#[inline]
-const fn gl_add(lhs: u64, rhs: u64) -> u64 {
-    let (sum, overflow) = lhs.overflowing_add(rhs);
-    let sum = if overflow { sum + EPSILON } else { sum };
-    if sum < MODULUS { sum } else { sum - MODULUS }
-}
-
-#[inline]
-const fn gl_sub(lhs: u64, rhs: u64) -> u64 {
-    if rhs > lhs {
-        MODULUS - rhs + lhs
-    } else {
-        lhs - rhs
-    }
-}
-
-#[inline]
-const fn gl_mul(lhs: u64, rhs: u64) -> u64 {
-    let wide = (lhs as u128) * (rhs as u128);
-    let lo = wide as u64;
-    let hi = (wide >> 64) as u64;
-    let hi_hi = hi >> 32;
-    let hi_lo = hi & EPSILON;
-
-    let (t0, borrow) = lo.overflowing_sub(hi_hi);
-    let t0 = if borrow { t0.wrapping_sub(EPSILON) } else { t0 };
-
-    let t1 = hi_lo * EPSILON;
-
-    let (t2, overflow) = t0.overflowing_add(t1);
-    let t2 = if overflow { t2 + EPSILON } else { t2 };
-    if t2 < MODULUS { t2 } else { t2 - MODULUS }
-}
-
 /// A Goldilocks scalar.
 ///
 /// Goldilocks is a very fast 64-bit prime field with order `0xffffffff00000001`.
 #[derive(Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Scalar(u64);
+pub struct Scalar(pub(crate) u64);
 
 impl Scalar {
     /// Constructs a Goldilocks scalar from its raw 64-bit value.
@@ -71,20 +35,6 @@ impl Scalar {
         assert!(value < MODULUS, "invalid Goldilocks value");
         Self(value)
     }
-}
-
-/// Alias for [`Scalar::from_const`].
-#[inline(always)]
-pub const fn from_const(value: u64) -> Scalar {
-    Scalar::from_const(value)
-}
-
-/// Parses a scalar from a string using the [`FromStr`] trait and unwrapping the result.
-///
-/// REQUIRES: the input string must be a static one known to have a valid scalar.
-#[inline]
-pub fn parse_scalar(s: &'static str) -> Scalar {
-    s.parse().unwrap()
 }
 
 impl ConstantTimeEq for Scalar {
@@ -135,6 +85,38 @@ impl<'a> AddAssign<&'a Self> for Scalar {
     }
 }
 
+impl Add<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn add(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar(rhs.0, gl_add(self.0, rhs.1))
+    }
+}
+
+impl<'a> Add<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn add(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar(rhs.0, gl_add(self.0, rhs.1))
+    }
+}
+
+impl Add<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn add(self, rhs: gl4::Scalar) -> Self::Output {
+        gl4::Scalar(rhs.0, rhs.1, rhs.2, gl_add(self.0, rhs.3))
+    }
+}
+
+impl<'a> Add<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn add(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        gl4::Scalar(rhs.0, rhs.1, rhs.2, gl_add(self.0, rhs.3))
+    }
+}
+
 impl Neg for Scalar {
     type Output = Scalar;
 
@@ -175,6 +157,48 @@ impl<'a> SubAssign<&'a Self> for Scalar {
     }
 }
 
+impl Sub<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn sub(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar(gl_sub(0, rhs.0), gl_sub(self.0, rhs.1))
+    }
+}
+
+impl<'a> Sub<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn sub(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar(gl_sub(0, rhs.0), gl_sub(self.0, rhs.1))
+    }
+}
+
+impl Sub<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn sub(self, rhs: gl4::Scalar) -> Self::Output {
+        gl4::Scalar(
+            gl_sub(0, rhs.0),
+            gl_sub(0, rhs.1),
+            gl_sub(0, rhs.2),
+            gl_sub(self.0, rhs.3),
+        )
+    }
+}
+
+impl<'a> Sub<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn sub(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        gl4::Scalar(
+            gl_sub(0, rhs.0),
+            gl_sub(0, rhs.1),
+            gl_sub(0, rhs.2),
+            gl_sub(self.0, rhs.3),
+        )
+    }
+}
+
 impl Mul<Self> for Scalar {
     type Output = Scalar;
 
@@ -203,6 +227,48 @@ impl<'a> MulAssign<&'a Self> for Scalar {
     }
 }
 
+impl Mul<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn mul(self, rhs: gl2::Scalar) -> Self::Output {
+        gl2::Scalar(gl_mul(self.0, rhs.0), gl_mul(self.0, rhs.1))
+    }
+}
+
+impl<'a> Mul<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn mul(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        gl2::Scalar(gl_mul(self.0, rhs.0), gl_mul(self.0, rhs.1))
+    }
+}
+
+impl Mul<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn mul(self, rhs: gl4::Scalar) -> Self::Output {
+        gl4::Scalar(
+            gl_mul(self.0, rhs.0),
+            gl_mul(self.0, rhs.1),
+            gl_mul(self.0, rhs.2),
+            gl_mul(self.0, rhs.3),
+        )
+    }
+}
+
+impl<'a> Mul<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn mul(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        gl4::Scalar(
+            gl_mul(self.0, rhs.0),
+            gl_mul(self.0, rhs.1),
+            gl_mul(self.0, rhs.2),
+            gl_mul(self.0, rhs.3),
+        )
+    }
+}
+
 impl Div<Self> for Scalar {
     type Output = Scalar;
 
@@ -228,6 +294,52 @@ impl DivAssign<Self> for Scalar {
 impl<'a> DivAssign<&'a Self> for Scalar {
     fn div_assign(&mut self, rhs: &'a Self) {
         self.0 = gl_mul(self.0, rhs.invert_unwrap().0);
+    }
+}
+
+impl Div<gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn div(self, rhs: gl2::Scalar) -> Self::Output {
+        let inverse = rhs.invert_unwrap();
+        gl2::Scalar(gl_mul(self.0, inverse.0), gl_mul(self.0, inverse.1))
+    }
+}
+
+impl<'a> Div<&'a gl2::Scalar> for Scalar {
+    type Output = gl2::Scalar;
+
+    fn div(self, rhs: &'a gl2::Scalar) -> Self::Output {
+        let inverse = rhs.invert_unwrap();
+        gl2::Scalar(gl_mul(self.0, inverse.0), gl_mul(self.0, inverse.1))
+    }
+}
+
+impl Div<gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn div(self, rhs: gl4::Scalar) -> Self::Output {
+        let inverse = rhs.invert_unwrap();
+        gl4::Scalar(
+            gl_mul(self.0, inverse.0),
+            gl_mul(self.0, inverse.1),
+            gl_mul(self.0, inverse.2),
+            gl_mul(self.0, inverse.3),
+        )
+    }
+}
+
+impl<'a> Div<&'a gl4::Scalar> for Scalar {
+    type Output = gl4::Scalar;
+
+    fn div(self, rhs: &'a gl4::Scalar) -> Self::Output {
+        let inverse = rhs.invert_unwrap();
+        gl4::Scalar(
+            gl_mul(self.0, inverse.0),
+            gl_mul(self.0, inverse.1),
+            gl_mul(self.0, inverse.2),
+            gl_mul(self.0, inverse.3),
+        )
     }
 }
 
@@ -352,6 +464,8 @@ impl TryFrom<u64> for Scalar {
 }
 
 impl Field for Scalar {
+    const MODULUS: &'static str = "0xffffffff00000001";
+
     const LEN: usize = 8;
 
     const ZERO: Self = Self(0);
@@ -541,8 +655,6 @@ impl Field64 for Scalar {
 }
 
 impl PrimeField for Scalar {
-    const MODULUS: &'static str = "0xffffffff00000001";
-
     const S: usize = 32;
 
     const MULTIPLICATIVE_GENERATOR: Self = Self(7);
@@ -564,6 +676,16 @@ impl PrimeField64 for Scalar {}
 mod tests {
     use super::*;
     use std::cmp::Ordering;
+
+    #[inline]
+    const fn from_const(value: u64) -> Scalar {
+        Scalar::from_const(value)
+    }
+
+    #[inline]
+    fn parse_scalar(s: &'static str) -> Scalar {
+        s.parse().unwrap()
+    }
 
     #[test]
     fn test_from_const() {
@@ -786,6 +908,24 @@ mod tests {
         assert_eq!(lhs, from_const(5));
     }
 
+    #[test]
+    fn test_add_gl2() {
+        let lhs = from_const(5);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 12);
+        assert_eq!(lhs + rhs, expected);
+        assert_eq!(lhs + &rhs, expected);
+    }
+
+    #[test]
+    fn test_add_gl4() {
+        let lhs = from_const(5);
+        let rhs = gl4::Scalar(1, 2, 3, 7);
+        let expected = gl4::Scalar(1, 2, 3, 12);
+        assert_eq!(lhs + rhs, expected);
+        assert_eq!(lhs + &rhs, expected);
+    }
+
     fn test_neg_impl(value: Scalar) {
         assert_eq!(-value, Scalar::MAX - value + Scalar::ONE);
     }
@@ -838,6 +978,24 @@ mod tests {
     }
 
     #[test]
+    fn test_sub_gl2() {
+        let lhs = from_const(12);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 5);
+        assert_eq!(lhs - rhs, expected);
+        assert_eq!(lhs - &rhs, expected);
+    }
+
+    #[test]
+    fn test_sub_gl4() {
+        let lhs = from_const(5);
+        let rhs = gl4::Scalar(1, 2, 3, 7);
+        let expected = gl4::Scalar(MODULUS - 1, MODULUS - 2, MODULUS - 3, MODULUS - 2);
+        assert_eq!(lhs - rhs, expected);
+        assert_eq!(lhs - &rhs, expected);
+    }
+
+    #[test]
     fn test_mul_by_zero() {
         assert_eq!(Scalar::ZERO * from_const(42), Scalar::ZERO);
         assert_eq!(Scalar::ZERO * &from_const(42), Scalar::ZERO);
@@ -869,6 +1027,24 @@ mod tests {
     }
 
     #[test]
+    fn test_mul_gl2() {
+        let lhs = from_const(12);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 84);
+        assert_eq!(lhs * rhs, expected);
+        assert_eq!(lhs * &rhs, expected);
+    }
+
+    #[test]
+    fn test_mul_gl4() {
+        let lhs = from_const(5);
+        let rhs = gl4::Scalar(1, 2, 3, 4);
+        let expected = gl4::Scalar(5, 10, 15, 20);
+        assert_eq!(lhs * rhs, expected);
+        assert_eq!(lhs * &rhs, expected);
+    }
+
+    #[test]
     fn test_div_by_one() {
         assert_eq!(from_const(42) / Scalar::ONE, from_const(42));
         assert_eq!(from_const(42) / &Scalar::ONE, from_const(42));
@@ -879,6 +1055,23 @@ mod tests {
         assert_eq!(from_const(408) / from_const(34), from_const(12));
         assert_eq!(from_const(408) / &from_const(34), from_const(12));
         assert_eq!(from_const(408) / from_const(12), from_const(34));
+    }
+
+    #[test]
+    fn test_div_gl2() {
+        let lhs = from_const(84);
+        let rhs = gl2::Scalar(0, 7);
+        let expected = gl2::Scalar(0, 12);
+        assert_eq!(lhs / rhs, expected);
+        assert_eq!(lhs / &rhs, expected);
+    }
+
+    #[test]
+    fn test_div_gl4() {
+        let lhs = from_const(5);
+        let divisor = gl4::Scalar(1, 2, 3, 4);
+        assert_eq!((lhs / divisor) * divisor, gl4::Scalar::from(lhs));
+        assert_eq!((lhs / &divisor) * divisor, gl4::Scalar::from(lhs));
     }
 
     #[test]
