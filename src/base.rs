@@ -466,6 +466,8 @@ impl TryFrom<u64> for Scalar {
 impl Field for Scalar {
     const MODULUS: &'static str = "0xffffffff00000001";
 
+    const CHARACTERISTIC: &'static str = "0xffffffff00000001";
+
     const LEN: usize = 8;
 
     const ZERO: Self = Self(0);
@@ -473,6 +475,20 @@ impl Field for Scalar {
     const ONE: Self = Self(1);
 
     const MAX: Self = Self(MODULUS - 1);
+
+    const S: usize = 32;
+
+    const MULTIPLICATIVE_GENERATOR: Self = Self(7);
+
+    const MINUS_TWO: Self = Self(MODULUS - 2);
+
+    const TWO_INV: Self = Self(0x7fffffff80000001);
+
+    const ROOT_OF_UNITY: Self = Self(0x185629dcda58878c);
+
+    const ROOT_OF_UNITY_INV: Self = Self(0x76b6b635b6fc8719);
+
+    const DELTA: Self = Self(0xaa5b2509f86bb4d4);
 
     fn is_odd(&self) -> Choice {
         ((self.0 & 1) as u8).into()
@@ -654,21 +670,7 @@ impl Field64 for Scalar {
     }
 }
 
-impl PrimeField for Scalar {
-    const S: usize = 32;
-
-    const MULTIPLICATIVE_GENERATOR: Self = Self(7);
-
-    const MINUS_TWO: Self = Self(MODULUS - 2);
-
-    const TWO_INV: Self = Self(0x7fffffff80000001);
-
-    const ROOT_OF_UNITY: Self = Self(0x185629dcda58878c);
-
-    const ROOT_OF_UNITY_INV: Self = Self(0x76b6b635b6fc8719);
-
-    const DELTA: Self = Self(0xaa5b2509f86bb4d4);
-}
+impl PrimeField for Scalar {}
 
 impl PrimeField64 for Scalar {}
 

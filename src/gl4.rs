@@ -699,6 +699,8 @@ impl Field for Scalar {
     const MODULUS: &'static str =
         "0xfffffffc00000009fffffff000000012fffffff000000009fffffffc00000001";
 
+    const CHARACTERISTIC: &'static str = "0xffffffff00000001";
+
     const LEN: usize = 32;
 
     const ZERO: Self = Self(0, 0, 0, 0);
@@ -706,6 +708,25 @@ impl Field for Scalar {
     const ONE: Self = Self(0, 0, 0, 1);
 
     const MAX: Self = Self(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 1);
+
+    const S: usize = 34;
+
+    const MULTIPLICATIVE_GENERATOR: Self = Self(1, 0, 0, 1);
+
+    const MINUS_TWO: Self = Self(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 2);
+
+    const TWO_INV: Self = Self(0, 0, 0, 0x7fffffff80000001);
+
+    const ROOT_OF_UNITY: Self = Self(0xd9b68383bcb40961, 0, 0, 0);
+
+    const ROOT_OF_UNITY_INV: Self = Self(0, 0xcbfc7146a7747b42, 0, 0);
+
+    const DELTA: Self = Self(
+        0xe53faac4524b3c3e,
+        0xe6fdf566bbbd9bbf,
+        0x80e56e21848645d9,
+        0x6acbc8c78ee334c6,
+    );
 
     fn is_odd(&self) -> Choice {
         (((self.0 ^ self.1 ^ self.2 ^ self.3) & 1) as u8).into()
@@ -1002,6 +1023,69 @@ mod tests {
         assert_eq!(
             Scalar::MAX,
             Scalar(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 1)
+        );
+    }
+
+    #[test]
+    fn test_multiplicative_generator() {
+        assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, Scalar(1, 0, 0, 1));
+
+        let base_generator = Scalar::from(base::Scalar::MULTIPLICATIVE_GENERATOR);
+        assert_eq!(
+            base_generator.pow(Scalar::try_from(U256::from(MODULUS - 1)).unwrap()),
+            Scalar::ONE
+        );
+
+        let modulus = U256::from(MODULUS);
+        let order = modulus * modulus * modulus * modulus - U256::one();
+        let t = Scalar::try_from(order >> Scalar::S).unwrap();
+        assert_eq!(
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(t),
+            Scalar::ROOT_OF_UNITY
+        );
+    }
+
+    #[test]
+    fn test_minus_two() {
+        assert_ne!(Scalar::MINUS_TWO, -from_const(2));
+
+        let value = Scalar(7, 11, 13, 17);
+        assert_eq!(value.invert_unwrap(), value.pow(Scalar::MINUS_TWO));
+    }
+
+    #[test]
+    fn test_two_inv() {
+        assert_eq!(Scalar::TWO_INV, from_const(2).invert_unwrap());
+        assert_eq!(Scalar::TWO_INV.invert_unwrap(), from_const(2));
+    }
+
+    #[test]
+    fn test_root_of_unity() {
+        for i in 0..Scalar::S {
+            assert_ne!(
+                Scalar::ROOT_OF_UNITY.pow(from_const(1u64 << i)),
+                Scalar::ONE
+            );
+        }
+        assert_eq!(
+            Scalar::ROOT_OF_UNITY.pow(from_const(1u64 << Scalar::S)),
+            Scalar::ONE
+        );
+    }
+
+    #[test]
+    fn test_root_of_unity_inverse() {
+        assert_eq!(
+            Scalar::ROOT_OF_UNITY_INV,
+            Scalar::ROOT_OF_UNITY.invert_unwrap()
+        );
+    }
+
+    #[test]
+    fn test_delta() {
+        assert_eq!(
+            Scalar::DELTA,
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S))
         );
     }
 
