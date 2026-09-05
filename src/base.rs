@@ -1,7 +1,7 @@
 use crate::gl2;
 use crate::gl4;
 use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
-use anyhow::Context;
+use anyhow::{Context, anyhow};
 use primitive_types::{U256, U512};
 use rand_core::{CryptoRng, TryCryptoRng};
 use starkom_ff::{Field, Field64, PrimeField, PrimeField64};
@@ -463,6 +463,30 @@ impl TryFrom<u64> for Scalar {
     }
 }
 
+impl TryFrom<u128> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: u128) -> Result<Self, Self::Error> {
+        if value > u64::MAX as u128 {
+            Err(anyhow!("overflow"))
+        } else {
+            Self::try_from(value as u64)
+        }
+    }
+}
+
+impl TryFrom<U256> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: U256) -> Result<Self, Self::Error> {
+        if value > U256::from(u64::MAX) {
+            Err(anyhow!("overflow"))
+        } else {
+            Self::try_from(value.as_u64())
+        }
+    }
+}
+
 impl Field for Scalar {
     const MODULUS: &'static str = "0xffffffff00000001";
 
@@ -629,6 +653,14 @@ impl Field for Scalar {
             Some(self.0 as u16)
         }
     }
+
+    fn to_u256(&self) -> U256 {
+        U256::from(self.0)
+    }
+
+    fn to_u512(&self) -> U512 {
+        U512::from(self.0)
+    }
 }
 
 impl Field64 for Scalar {
@@ -659,14 +691,6 @@ impl Field64 for Scalar {
 
     fn to_u128(&self) -> u128 {
         self.0 as u128
-    }
-
-    fn to_u256(&self) -> U256 {
-        U256::from(self.0)
-    }
-
-    fn to_u512(&self) -> U512 {
-        U512::from(self.0)
     }
 }
 
@@ -1164,6 +1188,34 @@ mod tests {
         );
         assert!(Scalar::try_from(MODULUS as usize).is_err());
         assert!(Scalar::try_from(usize::MAX).is_err());
+    }
+
+    #[test]
+    fn test_try_from_u128() {
+        assert_eq!(Scalar::try_from(0u128).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(1u128).unwrap(), from_const(1));
+        assert_eq!(
+            Scalar::try_from((MODULUS - 1) as u128).unwrap(),
+            from_const(MODULUS - 1)
+        );
+        assert!(Scalar::try_from(MODULUS as u128).is_err());
+        assert!(Scalar::try_from(u64::MAX as u128).is_err());
+        assert!(Scalar::try_from(u64::MAX as u128 + 1).is_err());
+        assert!(Scalar::try_from(u128::MAX).is_err());
+    }
+
+    #[test]
+    fn test_try_from_u256() {
+        assert_eq!(Scalar::try_from(U256::from(0)).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(U256::from(1)).unwrap(), from_const(1));
+        assert_eq!(
+            Scalar::try_from(U256::from(MODULUS - 1)).unwrap(),
+            from_const(MODULUS - 1)
+        );
+        assert!(Scalar::try_from(U256::from(MODULUS)).is_err());
+        assert!(Scalar::try_from(U256::from(u64::MAX)).is_err());
+        assert!(Scalar::try_from(U256::from(u64::MAX) + U256::from(1)).is_err());
+        assert!(Scalar::try_from(U256::MAX).is_err());
     }
 
     #[test]

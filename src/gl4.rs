@@ -916,6 +916,18 @@ impl Field for Scalar {
             Some(self.3 as u16)
         }
     }
+
+    fn to_u256(&self) -> U256 {
+        let modulus = U256::from(MODULUS);
+        U256::from(self.0) * modulus * modulus * modulus
+            + U256::from(self.1) * modulus * modulus
+            + U256::from(self.2) * modulus
+            + U256::from(self.3)
+    }
+
+    fn to_u512(&self) -> U512 {
+        self.to_u256().into()
+    }
 }
 
 impl Field256 for Scalar {
@@ -953,18 +965,6 @@ impl Field256 for Scalar {
         let fits = Choice::from(((self.0 == 0) && (self.1 == 0)) as u8);
         let value = (self.2 as u128) * (MODULUS as u128) + (self.3 as u128);
         CtOption::new(value, fits)
-    }
-
-    fn to_u256(&self) -> U256 {
-        let modulus = U256::from(MODULUS);
-        U256::from(self.0) * modulus * modulus * modulus
-            + U256::from(self.1) * modulus * modulus
-            + U256::from(self.2) * modulus
-            + U256::from(self.3)
-    }
-
-    fn to_u512(&self) -> U512 {
-        self.to_u256().into()
     }
 }
 
