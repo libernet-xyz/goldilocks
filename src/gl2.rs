@@ -532,6 +532,18 @@ impl TryFrom<u128> for Scalar {
     }
 }
 
+impl TryFrom<U256> for Scalar {
+    type Error = anyhow::Error;
+
+    fn try_from(value: U256) -> Result<Self, Self::Error> {
+        if value > U256::from(u128::MAX) {
+            Err(anyhow!("{:#x} exceeds the Goldilocks^2 range", value))
+        } else {
+            Self::try_from(value.as_u128())
+        }
+    }
+}
+
 impl Field for Scalar {
     const MODULUS: &'static str = "0xfffffffe00000002fffffffe00000001";
 
@@ -719,6 +731,14 @@ impl Field for Scalar {
             Some(self.1 as u16)
         }
     }
+
+    fn to_u256(&self) -> U256 {
+        U256::from(self.to_u128())
+    }
+
+    fn to_u512(&self) -> U512 {
+        U512::from(self.to_u128())
+    }
 }
 
 impl Field128 for Scalar {
@@ -754,14 +774,6 @@ impl Field128 for Scalar {
 
     fn to_u128(&self) -> u128 {
         (self.0 as u128) * (MODULUS as u128) + (self.1 as u128)
-    }
-
-    fn to_u256(&self) -> U256 {
-        U256::from(self.to_u128())
-    }
-
-    fn to_u512(&self) -> U512 {
-        U512::from(self.to_u128())
     }
 }
 
@@ -1237,6 +1249,19 @@ mod tests {
         let modulus_squared = (MODULUS as u128) * (MODULUS as u128);
         assert!(Scalar::try_from(modulus_squared).is_err());
         assert!(Scalar::try_from(u128::MAX).is_err());
+    }
+
+    #[test]
+    fn test_try_from_u256() {
+        assert_eq!(Scalar::try_from(U256::from(0)).unwrap(), from_const(0));
+        assert_eq!(Scalar::try_from(U256::from(42)).unwrap(), from_const(42));
+        assert_eq!(
+            Scalar::try_from(U256::from(Scalar::MAX.to_u128())).unwrap(),
+            Scalar::MAX
+        );
+        assert!(Scalar::try_from(U256::from(u128::MAX)).is_err());
+        assert!(Scalar::try_from(U256::from(u128::MAX) + U256::from(1)).is_err());
+        assert!(Scalar::try_from(U256::MAX).is_err());
     }
 
     #[test]
