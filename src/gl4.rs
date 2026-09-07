@@ -711,21 +711,26 @@ impl Field for Scalar {
 
     const S: usize = 34;
 
-    const MULTIPLICATIVE_GENERATOR: Self = Self(1, 0, 0, 1);
+    const MULTIPLICATIVE_GENERATOR: Self = Self(
+        0xdad2d5d9c22b5a6c,
+        0x0000000000000000,
+        0x359cd1c4d29b020b,
+        0x0000000000000000,
+    );
 
     const MINUS_TWO: Self = Self(MODULUS - 1, MODULUS - 1, MODULUS - 1, MODULUS - 2);
 
     const TWO_INV: Self = Self(0, 0, 0, 0x7fffffff80000001);
 
-    const ROOT_OF_UNITY: Self = Self(0xd9b68383bcb40961, 0, 0, 0);
+    const ROOT_OF_UNITY: Self = Self(0xaeb02cb57b837a30, 0, 0, 0);
 
-    const ROOT_OF_UNITY_INV: Self = Self(0, 0xcbfc7146a7747b42, 0, 0);
+    const ROOT_OF_UNITY_INV: Self = Self(0, 0xd18cc1db7e62623b, 0, 0);
 
     const DELTA: Self = Self(
-        0xe53faac4524b3c3e,
-        0xe6fdf566bbbd9bbf,
-        0x80e56e21848645d9,
-        0x6acbc8c78ee334c6,
+        0xe08cae3517c6b1d7,
+        0x27b38f046b08863c,
+        0x12e6e209c074730a,
+        0x93cecf39e75c41cb,
     );
 
     fn is_odd(&self) -> Choice {
@@ -1028,7 +1033,15 @@ mod tests {
 
     #[test]
     fn test_multiplicative_generator() {
-        assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, Scalar(1, 0, 0, 1));
+        assert_eq!(
+            Scalar::MULTIPLICATIVE_GENERATOR,
+            Scalar(
+                0xdad2d5d9c22b5a6c,
+                0x0000000000000000,
+                0x359cd1c4d29b020b,
+                0x0000000000000000,
+            )
+        );
 
         let base_generator = Scalar::from(base::Scalar::MULTIPLICATIVE_GENERATOR);
         assert_eq!(
@@ -1042,6 +1055,10 @@ mod tests {
         assert_eq!(
             Scalar::MULTIPLICATIVE_GENERATOR.pow(t),
             Scalar::ROOT_OF_UNITY
+        );
+        assert_ne!(
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S)),
+            Scalar::ONE
         );
     }
 
@@ -1061,6 +1078,11 @@ mod tests {
 
     #[test]
     fn test_root_of_unity() {
+        assert_eq!(
+            Scalar::ROOT_OF_UNITY.square(),
+            gl2::Scalar::ROOT_OF_UNITY.into()
+        );
+        assert_eq!(Scalar::S, gl2::Scalar::S + 1);
         for i in 0..Scalar::S {
             assert_ne!(
                 Scalar::ROOT_OF_UNITY.pow(from_const(1u64 << i)),

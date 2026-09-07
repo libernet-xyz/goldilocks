@@ -559,17 +559,17 @@ impl Field for Scalar {
 
     const S: usize = 33;
 
-    const MULTIPLICATIVE_GENERATOR: Self = Self(3, 1);
+    const MULTIPLICATIVE_GENERATOR: Self = Self(0xd0db6363b5f4de4c, 0xf049212091fc4a1a);
 
     const MINUS_TWO: Self = Self(MODULUS - 1, MODULUS - 2);
 
     const TWO_INV: Self = Self(0, 0x7fffffff80000001);
 
-    const ROOT_OF_UNITY: Self = Self(0x277205575921b744, 0);
+    const ROOT_OF_UNITY: Self = Self(0xd95051a31cf4a6ef, 0);
 
-    const ROOT_OF_UNITY_INV: Self = Self(0xa6973ae2be449f00, 0);
+    const ROOT_OF_UNITY_INV: Self = Self(0x98999633c41a86eb, 0);
 
-    const DELTA: Self = Self(0x58480b273cbbb6fe, 0x55ced266b8d5bf1e);
+    const DELTA: Self = Self(0x5fd7578f2091281d, 0x85759797f01a1db4);
 
     fn is_odd(&self) -> Choice {
         (((self.0 ^ self.1) & 1) as u8).into()
@@ -828,7 +828,10 @@ mod tests {
 
     #[test]
     fn test_multiplicative_generator() {
-        assert_eq!(Scalar::MULTIPLICATIVE_GENERATOR, Scalar(3, 1));
+        assert_eq!(
+            Scalar::MULTIPLICATIVE_GENERATOR,
+            Scalar(0xd0db6363b5f4de4c, 0xf049212091fc4a1a)
+        );
 
         let base_generator = Scalar::from(base::Scalar::MULTIPLICATIVE_GENERATOR);
         assert_ne!(
@@ -842,6 +845,10 @@ mod tests {
         assert_eq!(
             Scalar::MULTIPLICATIVE_GENERATOR.pow(t),
             Scalar::ROOT_OF_UNITY
+        );
+        assert_ne!(
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S)),
+            Scalar::ONE
         );
     }
 
@@ -861,6 +868,11 @@ mod tests {
 
     #[test]
     fn test_root_of_unity() {
+        assert_eq!(
+            Scalar::ROOT_OF_UNITY.square(),
+            base::Scalar::ROOT_OF_UNITY.into()
+        );
+        assert_eq!(Scalar::S, base::Scalar::S + 1);
         for i in 0..Scalar::S {
             assert_ne!(
                 Scalar::ROOT_OF_UNITY.pow(from_const(1u64 << i)),
