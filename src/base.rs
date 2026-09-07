@@ -1681,6 +1681,10 @@ mod tests {
             Scalar::MULTIPLICATIVE_GENERATOR.pow(Scalar::MAX / from_const(1u64 << Scalar::S)),
             Scalar::ROOT_OF_UNITY
         );
+        assert_ne!(
+            Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S)),
+            Scalar::ONE
+        );
     }
 
     #[test]
