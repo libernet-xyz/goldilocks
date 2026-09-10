@@ -694,7 +694,9 @@ impl Field64 for Scalar {
     }
 }
 
-impl PrimeField for Scalar {}
+impl PrimeField for Scalar {
+    const ALPHA: usize = 7;
+}
 
 impl PrimeField64 for Scalar {}
 
@@ -1730,5 +1732,13 @@ mod tests {
             Scalar::DELTA,
             Scalar::MULTIPLICATIVE_GENERATOR.pow(from_const(1u64 << Scalar::S))
         );
+    }
+
+    #[test]
+    fn test_alpha() {
+        assert_eq!(Scalar::ALPHA, 7);
+        let max: U256 = Scalar::MAX.to_u256();
+        let alpha: U256 = Scalar::ALPHA.into();
+        assert_ne!(max % alpha, U256::zero());
     }
 }
