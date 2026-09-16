@@ -1,6 +1,9 @@
 use crate::base;
 use crate::gl2;
-use crate::helpers::{MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul, gl_mul2, gl_sub};
+use crate::helpers::{
+    CHARACTERS_LOWER_CASE, CHARACTERS_UPPER_CASE, MODULUS, QUADRATIC_NON_RESIDUE, gl_add, gl_mul,
+    gl_mul2, gl_sub,
+};
 use anyhow::anyhow;
 use primitive_types::{H512, U256, U512};
 use starkom_ff::{Field, Field256};
@@ -12,12 +15,6 @@ use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
     CtOption,
 };
-
-/// Upper-case characters used in textual representations.
-static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-/// Lower-case characters used in textual representations.
-static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
 /// Goldilocks^4 extension field.
 ///
