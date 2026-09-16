@@ -1,6 +1,8 @@
 use crate::gl2;
 use crate::gl4;
-use crate::helpers::{MODULUS, gl_add, gl_mul, gl_sub};
+use crate::helpers::{
+    CHARACTERS_LOWER_CASE, CHARACTERS_UPPER_CASE, MODULUS, gl_add, gl_mul, gl_sub,
+};
 use anyhow::{Context, anyhow};
 use primitive_types::{U256, U512};
 use rand_core::{CryptoRng, TryCryptoRng};
@@ -13,12 +15,6 @@ use subtle::{
     Choice, ConditionallySelectable, ConstantTimeEq, ConstantTimeGreater, ConstantTimeLess,
     CtOption,
 };
-
-/// Upper-case characters used in textual representations.
-static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-
-/// Lower-case characters used in textual representations.
-static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
 /// A Goldilocks scalar.
 ///
@@ -544,7 +540,7 @@ impl Field for Scalar {
         if self.is_zero().into() {
             None
         } else {
-            Some(self.pow(Scalar::MINUS_TWO))
+            Some(self.pow_vartime(Scalar::MINUS_TWO))
         }
     }
 

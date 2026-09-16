@@ -7,6 +7,12 @@ const EPSILON: u64 = (1 << 32) - 1;
 /// field.
 pub(crate) const QUADRATIC_NON_RESIDUE: u64 = 7;
 
+/// Upper-case characters used in textual representations.
+pub(crate) static CHARACTERS_UPPER_CASE: &'static [u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+/// Lower-case characters used in textual representations.
+pub(crate) static CHARACTERS_LOWER_CASE: &'static [u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+
 /// Goldilocks addition.
 #[inline]
 pub(crate) const fn gl_add(lhs: u64, rhs: u64) -> u64 {
