@@ -38,6 +38,34 @@ impl Scalar {
     pub const fn from_const(value: u64) -> Self {
         Self(value / MODULUS, value % MODULUS)
     }
+
+    /// Constructs a Goldilocks^2 scalar from its [base field](`base::Scalar`) components.
+    ///
+    /// The two components are provided in little-endian order.
+    #[inline]
+    pub const fn from_le_base(components: [base::Scalar; 2]) -> Self {
+        Self(components[1].0, components[0].0)
+    }
+
+    /// Returns the base field components of this scalar in little-endian order.
+    #[inline]
+    pub const fn to_le_base(&self) -> [base::Scalar; 2] {
+        [base::Scalar(self.1), base::Scalar(self.0)]
+    }
+
+    /// Constructs a Goldilocks^2 scalar from its [base field](`base::Scalar`) components.
+    ///
+    /// The two components are provided in big-endian order.
+    #[inline]
+    pub const fn from_be_base(components: [base::Scalar; 2]) -> Self {
+        Self(components[0].0, components[1].0)
+    }
+
+    /// Returns the base field components of this scalar in big-endian order.
+    #[inline]
+    pub const fn to_be_base(&self) -> [base::Scalar; 2] {
+        [base::Scalar(self.0), base::Scalar(self.1)]
+    }
 }
 
 impl ConstantTimeEq for Scalar {
@@ -1241,6 +1269,86 @@ mod tests {
     fn test_from_base_scalar() {
         assert_eq!(Scalar::from(base::Scalar(42)), Scalar(0, 42));
         assert_eq!(Scalar::from(base::Scalar::ZERO), Scalar::ZERO);
+    }
+
+    #[test]
+    fn test_from_le_base() {
+        assert_eq!(
+            Scalar::from_le_base([base::Scalar::ZERO, base::Scalar::ZERO]),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar::from_le_base([base::Scalar::ONE, base::Scalar::ZERO]),
+            Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_le_base([base::Scalar::from_const(12), base::Scalar::from_const(34)]),
+            Scalar(34, 12)
+        );
+        assert_eq!(
+            Scalar::from_le_base([base::Scalar(MODULUS - 1), base::Scalar(MODULUS - 1)]),
+            Scalar::MAX
+        );
+    }
+
+    #[test]
+    fn test_to_le_base() {
+        assert_eq!(
+            Scalar::ZERO.to_le_base(),
+            [base::Scalar::ZERO, base::Scalar::ZERO]
+        );
+        assert_eq!(
+            Scalar::ONE.to_le_base(),
+            [base::Scalar::ONE, base::Scalar::ZERO]
+        );
+        assert_eq!(
+            Scalar(12, 34).to_le_base(),
+            [base::Scalar::from_const(34), base::Scalar::from_const(12)]
+        );
+        assert_eq!(
+            Scalar::MAX.to_le_base(),
+            [base::Scalar(MODULUS - 1), base::Scalar(MODULUS - 1)]
+        );
+    }
+
+    #[test]
+    fn test_from_be_base() {
+        assert_eq!(
+            Scalar::from_be_base([base::Scalar::ZERO, base::Scalar::ZERO]),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar::from_be_base([base::Scalar::ZERO, base::Scalar::ONE]),
+            Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_be_base([base::Scalar::from_const(12), base::Scalar::from_const(34)]),
+            Scalar(12, 34)
+        );
+        assert_eq!(
+            Scalar::from_be_base([base::Scalar(MODULUS - 1), base::Scalar(MODULUS - 1)]),
+            Scalar::MAX
+        );
+    }
+
+    #[test]
+    fn test_to_be_base() {
+        assert_eq!(
+            Scalar::ZERO.to_be_base(),
+            [base::Scalar::ZERO, base::Scalar::ZERO]
+        );
+        assert_eq!(
+            Scalar::ONE.to_be_base(),
+            [base::Scalar::ZERO, base::Scalar::ONE]
+        );
+        assert_eq!(
+            Scalar(12, 34).to_be_base(),
+            [base::Scalar::from_const(12), base::Scalar::from_const(34)]
+        );
+        assert_eq!(
+            Scalar::MAX.to_be_base(),
+            [base::Scalar(MODULUS - 1), base::Scalar(MODULUS - 1)]
+        );
     }
 
     #[test]
