@@ -1051,6 +1051,7 @@ mod tests {
             Scalar::MODULUS,
             "0xfffffffc00000009fffffff000000012fffffff000000009fffffffc00000001"
         );
+        assert_eq!(Scalar::CHARACTERISTIC, base::Scalar::MODULUS);
         let modulus: U256 = Scalar::MODULUS.parse().unwrap();
         assert_eq!(
             Scalar::MAX,
