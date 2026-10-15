@@ -492,6 +492,8 @@ impl Field for Scalar {
 
     const LEN: usize = 8;
 
+    const NUM_BITS: usize = 64;
+
     const ZERO: Self = Self(0);
 
     const ONE: Self = Self(1);
@@ -731,7 +733,12 @@ mod tests {
     #[test]
     fn test_modulus() {
         assert_eq!(Scalar::MODULUS, "0xffffffff00000001");
-        assert_eq!(Scalar::MAX, from_const(MODULUS - 1));
+        let modulus: U256 = Scalar::MODULUS.parse().unwrap();
+        assert_eq!(U256::from(Scalar::MAX.to_u64()), modulus - U256::one());
+        assert_eq!(modulus >> (Scalar::LEN * 8), U256::zero());
+        assert_ne!(modulus >> ((Scalar::LEN - 1) * 8), U256::zero());
+        assert_eq!(modulus >> Scalar::NUM_BITS, U256::zero());
+        assert_ne!(modulus >> (Scalar::NUM_BITS - 1), U256::zero());
     }
 
     #[test]
