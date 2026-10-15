@@ -832,6 +832,7 @@ mod tests {
     #[test]
     fn test_modulus() {
         assert_eq!(Scalar::MODULUS, "0xfffffffe00000002fffffffe00000001");
+        assert_eq!(Scalar::CHARACTERISTIC, base::Scalar::MODULUS);
         let modulus: U256 = Scalar::MODULUS.parse().unwrap();
         assert_eq!(Scalar::MAX, Scalar(MODULUS - 1, MODULUS - 1));
         assert_eq!(U256::from(Scalar::MAX.to_u128()), modulus - U256::one());

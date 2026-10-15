@@ -1,6 +1,6 @@
 [package]
 name = "starkom-goldilocks"
-version = "3.4.0"
+version = "3.4.1"
 description = "Starkom's implementation of the Goldilocks field."
 license = "Apache-2.0"
 repository = "https://github.com/libernet-xyz/goldilocks.git"
