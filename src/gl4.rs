@@ -16,6 +16,12 @@ use subtle::{
     CtOption,
 };
 
+/// `gamma = 7^((p - 1) / 4) = 2^48`, the factor by which the Frobenius map scales `Y`.
+const FROBENIUS_GAMMA_1: u64 = 0x0001000000000000;
+
+/// `gamma^3 = -2^48`, the factor by which the Frobenius map scales `Y^3`.
+const FROBENIUS_GAMMA_3: u64 = 0xfffeffff00000001;
+
 /// Goldilocks^4 extension field.
 ///
 /// This is the degree-2 extension `GL2[Y] / (Y^2 - X)` of [`gl2::Scalar`], where `X` is the GL2
@@ -748,6 +754,8 @@ impl Field for Scalar {
 
     const CHARACTERISTIC: &'static str = "0xffffffff00000001";
 
+    const EXTENSION_DEGREE: usize = 4;
+
     const LEN: usize = 32;
 
     const NUM_BITS: usize = 256;
@@ -856,6 +864,15 @@ impl Field for Scalar {
             self = self.square();
         }
         result
+    }
+
+    fn frobenius(&self) -> Self {
+        Self(
+            gl_mul(self.0, FROBENIUS_GAMMA_3),
+            gl_mul(self.1, FROBENIUS_GAMMA_1),
+            gl_sub(0, self.2),
+            self.3,
+        )
     }
 
     fn div_int(&self, rhs: &Self) -> (Self, Self) {
@@ -982,6 +999,24 @@ impl Field for Scalar {
     fn to_u512(&self) -> U512 {
         self.to_u256().into()
     }
+
+    fn from_base_coordinates(coordinates: &[Self::BaseField]) -> Self {
+        assert_eq!(coordinates.len(), 4);
+        Self(
+            coordinates[3].0,
+            coordinates[2].0,
+            coordinates[1].0,
+            coordinates[0].0,
+        )
+    }
+
+    fn to_base_coordinates(&self, coordinates: &mut [Self::BaseField]) {
+        assert_eq!(coordinates.len(), 4);
+        coordinates[0] = base::Scalar(self.3);
+        coordinates[1] = base::Scalar(self.2);
+        coordinates[2] = base::Scalar(self.1);
+        coordinates[3] = base::Scalar(self.0);
+    }
 }
 
 impl Field256 for Scalar {
@@ -1037,6 +1072,10 @@ mod tests {
         s.parse().unwrap()
     }
 
+    fn base_coordinates<const N: usize>(values: [u64; N]) -> [base::Scalar; N] {
+        values.map(base::Scalar::from_const)
+    }
+
     #[test]
     fn test_from_const() {
         assert_eq!(from_const(0), Scalar::ZERO);
@@ -1062,6 +1101,11 @@ mod tests {
         assert_ne!(modulus >> ((Scalar::LEN - 1) * 8), U256::zero());
         assert_eq!(modulus >> Scalar::NUM_BITS, U256::zero());
         assert_ne!(modulus >> (Scalar::NUM_BITS - 1), U256::zero());
+    }
+
+    #[test]
+    fn test_extension_degree() {
+        assert_eq!(Scalar::EXTENSION_DEGREE, 4);
     }
 
     #[test]
@@ -1778,6 +1822,69 @@ mod tests {
     }
 
     #[test]
+    fn test_from_base_coordinates() {
+        assert_eq!(
+            Scalar::from_base_coordinates(&base_coordinates([0, 0, 0, 0])),
+            Scalar::ZERO
+        );
+        assert_eq!(
+            Scalar::from_base_coordinates(&base_coordinates([1, 0, 0, 0])),
+            Scalar::ONE
+        );
+        assert_eq!(
+            Scalar::from_base_coordinates(&base_coordinates([12, 34, 56, 78])),
+            Scalar(78, 56, 34, 12)
+        );
+    }
+
+    #[test]
+    fn test_base_coordinates_are_little_endian() {
+        assert_eq!(
+            Scalar::from_base_coordinates(&base_coordinates([0, 1, 0, 0])),
+            parse_scalar("0xffffffff00000001")
+        );
+        assert_eq!(
+            Scalar::from_base_coordinates(&base_coordinates([0, 0, 1, 0])),
+            parse_scalar("0xfffffffe00000002fffffffe00000001")
+        );
+        assert_eq!(
+            Scalar::from_base_coordinates(&base_coordinates([0, 0, 0, 1])),
+            parse_scalar("0xfffffffd00000005fffffff900000005fffffffd00000001")
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_from_too_few_base_coordinates() {
+        Scalar::from_base_coordinates(&base_coordinates([1, 2, 3]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_from_too_many_base_coordinates() {
+        Scalar::from_base_coordinates(&base_coordinates([1, 2, 3, 4, 5]));
+    }
+
+    #[test]
+    fn test_to_base_coordinates() {
+        let mut coordinates = [base::Scalar::ZERO; 4];
+        Scalar(78, 56, 34, 12).to_base_coordinates(&mut coordinates);
+        assert_eq!(coordinates, base_coordinates([12, 34, 56, 78]));
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_to_too_few_base_coordinates() {
+        Scalar::ONE.to_base_coordinates(&mut [base::Scalar::ZERO; 3]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_to_too_many_base_coordinates() {
+        Scalar::ONE.to_base_coordinates(&mut [base::Scalar::ZERO; 5]);
+    }
+
+    #[test]
     fn test_from_be_base() {
         assert_eq!(Scalar::from_be_base([base::Scalar::ZERO; 4]), Scalar::ZERO);
         assert_eq!(
@@ -1934,6 +2041,82 @@ mod tests {
         assert_eq!(value.pow_vartime(Scalar::ZERO), Scalar::ONE);
         assert_eq!(value.pow_vartime(from_const(3)), value * value * value);
         assert_eq!(value.pow_vartime(from_const(3)), value.pow(from_const(3)));
+    }
+
+    #[test]
+    fn test_frobenius() {
+        assert_eq!(Scalar::ZERO.frobenius(), Scalar::ZERO);
+        assert_eq!(Scalar::ONE.frobenius(), Scalar::ONE);
+        assert_eq!(
+            Scalar(0, 1, 0, 0).frobenius(),
+            Scalar(0, 0x0001000000000000, 0, 0)
+        );
+        assert_eq!(Scalar(0, 0, 1, 0).frobenius(), Scalar(0, 0, MODULUS - 1, 0));
+        assert_eq!(
+            Scalar(1, 0, 0, 0).frobenius(),
+            Scalar(0xfffeffff00000001, 0, 0, 0)
+        );
+        assert_eq!(
+            Scalar(1, 2, 3, 4).frobenius(),
+            Scalar(0xfffeffff00000001, 0x0002000000000000, MODULUS - 3, 4)
+        );
+    }
+
+    #[test]
+    fn test_frobenius_fixes_base_field() {
+        assert_eq!(
+            Scalar::from(base::Scalar::from_const(42)).frobenius(),
+            Scalar::from(base::Scalar::from_const(42))
+        );
+        assert_eq!(
+            Scalar::from(base::Scalar::MAX).frobenius(),
+            Scalar::from(base::Scalar::MAX)
+        );
+    }
+
+    fn test_frobenius_against_exponentiation_impl(value: Scalar) {
+        assert_eq!(value.frobenius(), value.pow_u64_vartime(MODULUS));
+    }
+
+    #[test]
+    fn test_frobenius_against_exponentiation() {
+        test_frobenius_against_exponentiation_impl(Scalar(0, 1, 0, 0));
+        test_frobenius_against_exponentiation_impl(Scalar(1, 2, 3, 4));
+        test_frobenius_against_exponentiation_impl(Scalar(
+            0x0123456789abcdef,
+            0x0fedcba987654321,
+            0x1122334455667788,
+            0x99aabbccddeeff00,
+        ));
+        test_frobenius_against_exponentiation_impl(Scalar::MAX);
+        test_frobenius_against_exponentiation_impl(Scalar::MULTIPLICATIVE_GENERATOR);
+    }
+
+    #[test]
+    fn test_frobenius_order() {
+        let value = Scalar(
+            0x0123456789abcdef,
+            0x0fedcba987654321,
+            0x1122334455667788,
+            0x99aabbccddeeff00,
+        );
+        assert_ne!(value.frobenius(), value);
+        assert_ne!(value.frobenius().frobenius(), value);
+        assert_ne!(value.frobenius().frobenius().frobenius(), value);
+        assert_eq!(value.frobenius().frobenius().frobenius().frobenius(), value);
+    }
+
+    #[test]
+    fn test_frobenius_homomorphism() {
+        let lhs = Scalar(1, 2, 3, 4);
+        let rhs = Scalar(
+            0x0123456789abcdef,
+            0x0fedcba987654321,
+            0x1122334455667788,
+            0x99aabbccddeeff00,
+        );
+        assert_eq!((lhs + rhs).frobenius(), lhs.frobenius() + rhs.frobenius());
+        assert_eq!((lhs * rhs).frobenius(), lhs.frobenius() * rhs.frobenius());
     }
 
     #[test]
